@@ -28,7 +28,6 @@ export class LiveEngineAdapter {
   private neuronCount: number = 0;
   private edgeCount: number = 0;
   private groupCount: number = 0;
-  private groupSizes: number[] = [];
   private groupNameToId: Record<string, number> = {};
   private groupIdToName: string[] = [];
   private groupIndices: Uint32Array[] = [];
@@ -93,7 +92,6 @@ export class LiveEngineAdapter {
       const meta = await metaRes.json();
 
       this.groupCount = meta.group_count;
-      this.groupSizes = meta.group_sizes;
       for (const g of meta.groups) {
         this.groupNameToId[g.name] = g.id;
         this.groupIdToName[g.id] = g.name;

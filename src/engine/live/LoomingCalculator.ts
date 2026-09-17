@@ -29,7 +29,6 @@ export class LoomingCalculator {
   private params: LoomingParams;
   private prevDistance: number | null = null;
   private prevTimeS: number | null = null;
-  private prevThetaRad: number = 0;
 
   constructor(params: Partial<LoomingParams> = {}) {
     this.params = { ...DEFAULT_LOOM_PARAMS, ...params };
@@ -38,7 +37,6 @@ export class LoomingCalculator {
   public reset(): void {
     this.prevDistance = null;
     this.prevTimeS = null;
-    this.prevThetaRad = 0;
   }
 
   /**
@@ -85,7 +83,6 @@ export class LoomingCalculator {
 
     this.prevDistance = dist;
     this.prevTimeS = currentTimeS;
-    this.prevThetaRad = theta;
 
     // Relative bearing to predator from fly's perspective
     // Angle in arena coordinates
