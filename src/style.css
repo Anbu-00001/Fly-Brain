@@ -328,6 +328,129 @@ body::before {
   display: block;
 }
 
+/* 3D Cyber-Terrarium Container & Controls */
+.arena-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 14px;
+  background: rgba(8, 13, 20, 0.95);
+  border-bottom: 1px solid var(--border-subtle);
+  z-index: 20;
+  backdrop-filter: blur(8px);
+  user-select: none;
+}
+
+.arena-mode-group, .arena-cam-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cam-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+  margin-right: 4px;
+}
+
+.arena-btn, .cam-btn {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 3px;
+  border: 1px solid rgba(30, 52, 80, 0.7);
+  background: rgba(12, 20, 32, 0.8);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  letter-spacing: 0.5px;
+}
+
+.arena-btn:hover, .cam-btn:hover {
+  border-color: var(--cyan);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.arena-btn.active {
+  border-color: var(--cyan);
+  background: rgba(0, 240, 255, 0.15);
+  color: var(--cyan);
+  box-shadow: 0 0 12px rgba(0, 240, 255, 0.35);
+}
+
+.cam-btn.active {
+  border-color: var(--amber);
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--amber);
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.35);
+}
+
+.arena-3d-container {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  background: #04070b;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+}
+
+#arena3DCanvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.compound-eye-overlay {
+  display: none;
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  pointer-events: none;
+  z-index: 15;
+  background: 
+    radial-gradient(circle at center, transparent 40%, rgba(4, 7, 11, 0.85) 90%),
+    repeating-radial-gradient(circle at 50% 50%, transparent 0, transparent 4px, rgba(0, 240, 255, 0.04) 5px, transparent 6px);
+  box-shadow: inset 0 0 80px rgba(0, 240, 255, 0.25);
+  align-items: center;
+  justify-content: center;
+}
+
+.compound-eye-overlay::before {
+  content: 'RETINOTOPIC COMPOUND EYE COCKPIT [POV] — DROSOPHILA MELANOGASTER';
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--cyan);
+  background: rgba(6, 10, 15, 0.7);
+  padding: 4px 12px;
+  border: 1px solid rgba(0, 240, 255, 0.3);
+  border-radius: 4px;
+}
+
+.hud-countdown-text {
+  font-family: var(--font-mono);
+  font-size: 64px;
+  font-weight: 700;
+  color: var(--cyan);
+  text-shadow: 0 0 30px var(--cyan), 0 0 60px var(--cyan);
+  letter-spacing: 4px;
+  text-align: center;
+  animation: pulseCountdown 0.65s infinite alternate;
+}
+
+@keyframes pulseCountdown {
+  0% { transform: scale(0.95); opacity: 0.8; }
+  100% { transform: scale(1.05); opacity: 1.0; }
+}
+
 /* Receptive Field & Brain Gradient Inspector (User Requirement) */
 .brain-gradient-inspector {
   height: 250px;

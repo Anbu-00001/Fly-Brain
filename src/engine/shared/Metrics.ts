@@ -37,3 +37,51 @@ export function computeLatencyMs(threatStartTimeMs: number, escapeTimeMs: number
   if (escapeTimeMs === null || escapeTimeMs < threatStartTimeMs) return null;
   return Math.round(escapeTimeMs - threatStartTimeMs);
 }
+
+export interface Obstacle3D {
+  x: number;
+  z: number;
+  radius: number;
+  height: number;
+}
+
+/**
+ * Computes whether an obstacle occludes direct line of sight from predator to fly.
+ */
+export function isLineOfSightOccluded(
+  flyX: number,
+  flyZ: number,
+  predX: number,
+  predZ: number,
+  obstacle: Obstacle3D
+): boolean {
+  const dx = predX - flyX;
+  const dz = predZ - flyZ;
+  const lineDist = Math.hypot(dx, dz);
+  if (lineDist < 1e-6) return false;
+
+  const fx = obstacle.x - flyX;
+  const fz = obstacle.z - flyZ;
+
+  const t = (fx * dx + fz * dz) / (lineDist * lineDist);
+  if (t <= 0 || t >= 1) return false;
+
+  const closestX = flyX + t * dx;
+  const closestZ = flyZ + t * dz;
+
+  const distToCenter = Math.hypot(obstacle.x - closestX, obstacle.z - closestZ);
+  return distToCenter < obstacle.radius;
+}
+
+/**
+ * Calculates compound eye aspect intensity modulation:
+ * When obstacle blocks line of sight, looming flux is attenuated.
+ */
+export function calculateEffectiveLoomFlux(
+  rawLoomIntensity: number,
+  isOccluded: boolean,
+  occlusionAttenuationFactor: number = 0.15
+): number {
+  return isOccluded ? rawLoomIntensity * occlusionAttenuationFactor : rawLoomIntensity;
+}
+
