@@ -19,6 +19,7 @@ import { BrainView3D } from './ui/BrainView3D';
 import { ReplayControls } from './ui/ReplayControls';
 import { BrainSurgeryPanel } from './ui/BrainSurgeryPanel';
 import { AboutDrawer } from './ui/AboutDrawer';
+import { ConnectomeLabView } from './app/ConnectomeLabView';
 
 class AppOrchestrator {
   private state: AppState;
@@ -40,6 +41,9 @@ class AppOrchestrator {
   private brainPanel: BrainPanel | null = null;
   private neuroRenderer2D: NeuroRenderer2D | null = null;
   private brainView3D: BrainView3D | null = null;
+
+  // Connectome Lab ("God Mode")
+  private connectomeLabView: ConnectomeLabView | null = null;
 
   // Replay & Surgery components
   private replayControls: ReplayControls | null = null;
@@ -97,6 +101,7 @@ class AppOrchestrator {
 
   private bindNav(): void {
     const btnExp = document.getElementById('navExperiment');
+    const btnLab = document.getElementById('navLab');
     const btnReplay = document.getElementById('navReplay');
     const btnSurgery = document.getElementById('navSurgery');
     const btnAbout = document.getElementById('navAbout');
@@ -104,6 +109,11 @@ class AppOrchestrator {
     btnExp?.addEventListener('click', () => {
       this.updateNavButtons('navExperiment');
       this.renderExperimentScreen();
+    });
+
+    btnLab?.addEventListener('click', () => {
+      this.updateNavButtons('navLab');
+      this.renderLabScreen();
     });
 
     btnReplay?.addEventListener('click', () => {
@@ -144,9 +154,14 @@ class AppOrchestrator {
             <strong>Scientific architecture:</strong> The full 166,000-neuron whole-CNS model powers Brain Surgery's recorded comparisons;
             live encounters run on a 139,000-neuron real-time connectome of the same fly's visual and motor system.
           </p>
-          <button type="button" class="cyber-action-btn" id="btnStartExperiment">
-            [ START EXPERIMENT ]
-          </button>
+          <div class="home-cta-group">
+            <button type="button" class="cyber-action-btn primary-escape-btn" id="btnStartExperiment">
+              [ ◈ START ESCAPE ENCOUNTER ]
+            </button>
+            <button type="button" class="cyber-action-btn secondary-lab-btn" id="btnStartLab">
+              [ ⚡ ENTER CONNECTOME LAB (GOD MODE) ]
+            </button>
+          </div>
           <div class="home-footer-note">
             Zero trained AI · Real EM connectomes (FlyWire FAFB v783 & MaleCNS v1.0) · 100% Static WebAssembly/JS
           </div>
@@ -159,6 +174,24 @@ class AppOrchestrator {
       this.updateNavButtons('navExperiment');
       this.renderExperimentScreen(true);
     });
+
+    const btnLab = document.getElementById('btnStartLab');
+    btnLab?.addEventListener('click', () => {
+      this.updateNavButtons('navLab');
+      this.renderLabScreen();
+    });
+  }
+
+  /**
+   * Connectome Lab Screen ("God Mode")
+   */
+  private renderLabScreen(): void {
+    this.stopExperiment();
+    this.stopReplayLoop();
+    this.state.setScreen('lab');
+    this.screenMount.innerHTML = '';
+
+    this.connectomeLabView = new ConnectomeLabView(this.screenMount, this.liveEngine);
   }
 
   /**
@@ -588,6 +621,7 @@ class AppOrchestrator {
     this.arenaView3D?.stop();
     this.neuroRenderer2D?.stop();
     this.brainView3D?.stop();
+    this.connectomeLabView?.stop();
   }
 
   private handleScreenChange(_screen: ScreenId): void {

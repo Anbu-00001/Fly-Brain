@@ -7,7 +7,7 @@
 
 import { EngineMode, LIVE_ENGINE_METADATA, RECORDED_ENGINE_METADATA } from '../engine/shared/ConnectomeTypes';
 
-export type ScreenId = 'home' | 'experiment' | 'replay' | 'brainSurgery';
+export type ScreenId = 'home' | 'experiment' | 'replay' | 'brainSurgery' | 'lab';
 
 export type EncounterStatus = 'idle' | 'countdown' | 'running' | 'escaped' | 'caught';
 
@@ -50,7 +50,7 @@ export class AppState {
     // Brain Surgery and Canonical Replay are RECORDED mode per §11 and §12
     if (screen === 'brainSurgery' || screen === 'replay') {
       this.setEngine('RECORDED');
-    } else if (screen === 'experiment') {
+    } else if (screen === 'experiment' || screen === 'lab') {
       this.setEngine('LIVE');
     }
 
