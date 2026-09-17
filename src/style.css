@@ -1,0 +1,1198 @@
+/* ============================================================
+   FLY ESCAPE — Design System & Cyberpunk Laboratory Aesthetic
+   Sleek near-black palette, technical typography, glowing telemetry
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Space+Grotesk:wght@400;600;700&family=Inter:wght@400;500;600&display=swap');
+
+:root {
+  --bg-primary: #04070b;
+  --bg-secondary: #080d14;
+  --bg-card: rgba(12, 20, 32, 0.75);
+  --bg-card-hover: rgba(18, 30, 48, 0.85);
+
+  --border-subtle: rgba(30, 52, 80, 0.5);
+  --border-glow: rgba(0, 240, 255, 0.35);
+
+  --cyan: #00f0ff;
+  --cyan-glow: rgba(0, 240, 255, 0.4);
+  --purple: #a855f7;
+  --purple-glow: rgba(168, 85, 247, 0.4);
+  --amber: #f59e0b;
+  --amber-glow: rgba(245, 158, 11, 0.4);
+  --crimson: #ff3366;
+  --crimson-glow: rgba(255, 51, 102, 0.4);
+
+  --text-main: #f1f5f9;
+  --text-muted: #94a3b8;
+  --text-dim: #475569;
+
+  --font-mono: 'JetBrains Mono', monospace;
+  --font-heading: 'Space Grotesk', sans-serif;
+  --font-sans: 'Inter', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: var(--bg-primary);
+  color: var(--text-main);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scanline and laboratory texture overlay */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.015), rgba(0, 255, 0, 0.005), rgba(0, 0, 255, 0.015));
+  background-size: 100% 3px, 6px 100%;
+  pointer-events: none;
+  z-index: 999;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  height: 100vh;
+  position: relative;
+}
+
+/* ============================================================
+   TOP NAVIGATION & HEADER
+   ============================================================ */
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 24px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-subtle);
+  z-index: 50;
+}
+
+.brand-section {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.brand-logo {
+  font-family: var(--font-heading);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: #fff;
+  text-shadow: 0 0 10px var(--cyan-glow);
+}
+
+.brand-logo .accent-cyan {
+  color: var(--cyan);
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nav-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 1px;
+  padding: 6px 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.nav-btn:hover {
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.nav-btn.active {
+  color: var(--cyan);
+  background: rgba(0, 240, 255, 0.08);
+  border-color: rgba(0, 240, 255, 0.3);
+}
+
+/* ============================================================
+   LIVE / RECORDED ENGINE BADGE (§11 NON-NEGOTIABLE UI CONTRACT)
+   ============================================================ */
+.engine-mode-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  backdrop-filter: blur(8px);
+}
+
+.badge-live {
+  background: rgba(0, 240, 255, 0.1);
+  border: 1px solid rgba(0, 240, 255, 0.4);
+  color: var(--cyan);
+  box-shadow: 0 0 12px rgba(0, 240, 255, 0.2);
+}
+
+.badge-recorded {
+  background: rgba(168, 85, 247, 0.1);
+  border: 1px solid rgba(168, 85, 247, 0.4);
+  color: var(--purple);
+  box-shadow: 0 0 12px rgba(168, 85, 247, 0.2);
+}
+
+.badge-indicator {
+  font-size: 10px;
+}
+
+.pulse-live {
+  animation: pulseCyan 1.5s infinite;
+}
+
+.pulse-recorded {
+  animation: pulsePurple 1.5s infinite;
+}
+
+@keyframes pulseCyan {
+  0% { opacity: 0.4; text-shadow: 0 0 2px var(--cyan); }
+  50% { opacity: 1; text-shadow: 0 0 8px var(--cyan); }
+  100% { opacity: 0.4; text-shadow: 0 0 2px var(--cyan); }
+}
+
+@keyframes pulsePurple {
+  0% { opacity: 0.4; text-shadow: 0 0 2px var(--purple); }
+  50% { opacity: 1; text-shadow: 0 0 8px var(--purple); }
+  100% { opacity: 0.4; text-shadow: 0 0 2px var(--purple); }
+}
+
+.badge-sep {
+  color: var(--text-dim);
+}
+
+.badge-count {
+  color: #fff;
+  font-weight: 700;
+}
+
+.badge-dataset {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+/* ============================================================
+   SCREEN CONTAINER & LAYOUTS
+   ============================================================ */
+.screen-container {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+}
+
+/* ============================================================
+   HOME SCREEN (§9)
+   ============================================================ */
+.home-screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  background: radial-gradient(circle at 50% 40%, #0d1726 0%, #04070b 70%);
+  text-align: center;
+}
+
+.home-hero {
+  max-width: 780px;
+}
+
+.hero-tag {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 3px;
+  color: var(--cyan);
+  margin-bottom: 12px;
+  text-transform: uppercase;
+}
+
+.hero-title {
+  font-family: var(--font-heading);
+  font-size: 56px;
+  font-weight: 700;
+  letter-spacing: 4px;
+  line-height: 1.1;
+  color: #fff;
+  margin-bottom: 18px;
+  text-shadow: 0 0 30px rgba(0, 240, 255, 0.3);
+}
+
+.hero-subtitle {
+  font-family: var(--font-mono);
+  font-size: 20px;
+  color: #93c5fd;
+  margin-bottom: 24px;
+  font-weight: 400;
+}
+
+.hero-desc {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--text-muted);
+  margin-bottom: 36px;
+}
+
+.cyber-action-btn {
+  background: linear-gradient(135deg, #00f0ff 0%, #0284c7 100%);
+  color: #04070b;
+  border: none;
+  font-family: var(--font-heading);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  padding: 16px 36px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  box-shadow: 0 0 24px rgba(0, 240, 255, 0.4);
+}
+
+.cyber-action-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 36px rgba(0, 240, 255, 0.7);
+  background: linear-gradient(135deg, #38bdf8 0%, #00f0ff 100%);
+}
+
+.home-footer-note {
+  margin-top: 48px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+}
+
+/* ============================================================
+   EXPERIMENT / MAIN VIEW LAYOUT
+   Left: Arena + Receptive Field Inspector
+   Right: Brain Panel (Telemetry + 2D/3D Brain View)
+   ============================================================ */
+.experiment-view {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 400px;
+  height: 100%;
+  overflow: hidden;
+}
+
+.arena-column {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  position: relative;
+  border-right: 1px solid var(--border-subtle);
+  overflow: hidden;
+}
+
+.arena-container {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  background: #060a0f;
+  overflow: hidden;
+}
+
+#arenaCanvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Receptive Field & Brain Gradient Inspector (User Requirement) */
+.brain-gradient-inspector {
+  height: 250px;
+  flex-shrink: 0;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  padding: 10px 16px;
+  z-index: 10;
+  box-sizing: border-box;
+}
+
+.inspector-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.inspector-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.inspector-title-row h3 {
+  font-family: var(--font-heading);
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  color: var(--cyan);
+}
+
+.inspector-badge {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-dim);
+}
+
+.inspector-body {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 280px 1fr 220px;
+  gap: 16px;
+  align-items: center;
+}
+
+.sub-heading {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: 1px;
+  margin-bottom: 6px;
+}
+
+.canvas-wrap {
+  position: relative;
+  background: rgba(10, 16, 24, 0.6);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  padding: 4px;
+}
+
+#ommatidiaCanvas {
+  width: 100%;
+  height: 130px;
+  display: block;
+}
+
+.eye-labels {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+.receptive-field-metrics {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 6px;
+}
+
+.receptive-field-metrics strong {
+  color: var(--cyan);
+}
+
+/* Neuropil Light Reaction Meters */
+.neuropil-meters-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.meter-card {
+  background: rgba(15, 23, 36, 0.6);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  padding: 6px 10px;
+}
+
+.meter-info {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  margin-bottom: 4px;
+}
+
+.meter-name {
+  color: var(--text-muted);
+}
+
+.meter-val {
+  color: #fff;
+  font-weight: 700;
+}
+
+.meter-bar-track {
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.meter-bar-fill {
+  height: 100%;
+  transition: width 0.1s ease;
+}
+
+.fill-cyan {
+  background: linear-gradient(90deg, #0284c7, #00f0ff);
+  box-shadow: 0 0 8px var(--cyan-glow);
+}
+
+.fill-amber {
+  background: linear-gradient(90deg, #d97706, #f59e0b);
+  box-shadow: 0 0 8px var(--amber-glow);
+}
+
+.fill-crimson {
+  background: linear-gradient(90deg, #e11d48, #ff3366);
+  box-shadow: 0 0 8px var(--crimson-glow);
+}
+
+.flash-pulse {
+  animation: pulseFlash 0.35s ease;
+}
+
+@keyframes pulseFlash {
+  0% { filter: brightness(2.5); transform: scaleY(1.5); }
+  100% { filter: brightness(1.0); transform: scaleY(1.0); }
+}
+
+/* Optical Flash Tools */
+.optical-flash-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.flash-btn-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cyber-btn {
+  background: rgba(0, 240, 255, 0.1);
+  border: 1px solid rgba(0, 240, 255, 0.35);
+  color: var(--cyan);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  padding: 7px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+}
+
+.cyber-btn:hover {
+  background: rgba(0, 240, 255, 0.25);
+  border-color: var(--cyan);
+  box-shadow: 0 0 12px var(--cyan-glow);
+}
+
+.flash-btn-warn {
+  background: rgba(255, 51, 102, 0.15);
+  border: 1px solid rgba(255, 51, 102, 0.45);
+  color: var(--crimson);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  padding: 7px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+}
+
+.flash-btn-warn:hover {
+  background: rgba(255, 51, 102, 0.3);
+  box-shadow: 0 0 12px var(--crimson-glow);
+}
+
+.intensity-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-muted);
+}
+
+.intensity-slider-row input[type="range"] {
+  flex: 1;
+  accent-color: var(--cyan);
+}
+
+/* ============================================================
+   RIGHT BRAIN PANEL
+   ============================================================ */
+.brain-panel {
+  background: var(--bg-secondary);
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  overflow-y: auto;
+  gap: 16px;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border-subtle);
+  padding-bottom: 12px;
+}
+
+.panel-title-group h2 {
+  font-family: var(--font-heading);
+  font-size: 15px;
+  letter-spacing: 1.5px;
+  color: #fff;
+}
+
+.panel-badge-glow {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  color: var(--cyan);
+}
+
+.view-toggle-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-subtle);
+  color: var(--cyan);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.view-toggle-btn:hover, .view-toggle-btn.active {
+  background: rgba(0, 240, 255, 0.15);
+  border-color: var(--cyan);
+  box-shadow: 0 0 10px var(--cyan-glow);
+}
+
+/* Telemetry Grid */
+.telemetry-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.stat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  padding: 8px;
+}
+
+.stat-label {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+}
+
+.stat-number-row {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.stat-value {
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.stat-sub {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+.highlight-cyan { color: var(--cyan); }
+.highlight-amber { color: var(--amber); }
+.highlight-crimson { color: var(--crimson); }
+
+/* Regional Breakdown */
+.regional-section, .sparkline-section, .groups-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.section-title {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+}
+
+.region-row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.region-meta {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.region-tag {
+  font-weight: 600;
+}
+.sensory-tag { color: #38bdf8; }
+.central-tag { color: #c084fc; }
+.drives-tag { color: #fbbf24; }
+.motor-tag { color: #f43f5e; }
+
+.region-bar-bg {
+  width: 100%;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.region-bar-fill {
+  height: 100%;
+  transition: width 0.1s ease;
+}
+
+.fill-blue { background: #38bdf8; }
+.fill-purple { background: #c084fc; }
+.fill-red { background: #f43f5e; }
+
+/* Sparkline */
+.sparkline-container {
+  height: 45px;
+  background: rgba(10, 16, 24, 0.6);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  padding: 4px;
+}
+
+.sparkline-svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* Active Groups */
+.groups-scroll {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.group-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(0, 240, 255, 0.08);
+  border: 1px solid rgba(0, 240, 255, 0.25);
+  border-radius: 3px;
+  padding: 3px 8px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.group-pill-name { color: #94a3b8; }
+.group-pill-count { color: var(--cyan); font-weight: 700; }
+.group-pill-idle { color: var(--text-dim); font-family: var(--font-mono); font-size: 11px; }
+
+/* 2D & 3D Brain Views */
+.neuro-renderer-wrap, .brain-view-3d {
+  width: 100%;
+  height: 260px;
+  background: #070c12;
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+
+#neuroCanvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* ============================================================
+   REPLAY CONTROLS BAR
+   ============================================================ */
+.replay-controls-bar {
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-subtle);
+  padding: 10px 24px;
+}
+
+.replay-bar-inner {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.replay-btn-group {
+  display: flex;
+  gap: 6px;
+}
+
+.ctrl-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-subtle);
+  color: #fff;
+  font-size: 14px;
+  width: 34px;
+  height: 34px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.ctrl-btn:hover {
+  background: rgba(0, 240, 255, 0.2);
+  border-color: var(--cyan);
+  color: var(--cyan);
+}
+
+.timeline-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.timeline-slider {
+  flex: 1;
+  accent-color: var(--cyan);
+}
+
+.time-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  min-width: 120px;
+}
+
+.replay-aux-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.speed-picker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.cyber-select {
+  background: rgba(15, 23, 36, 0.8);
+  border: 1px solid var(--border-subtle);
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.cyber-btn-outline {
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.cyber-btn-outline:hover {
+  color: var(--cyan);
+  border-color: var(--cyan);
+}
+
+/* ============================================================
+   BRAIN SURGERY PANEL (§12)
+   ============================================================ */
+.brain-surgery-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-primary);
+  padding: 24px;
+  overflow-y: auto;
+}
+
+.surgery-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--border-subtle);
+  padding-bottom: 16px;
+}
+
+.surgery-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--purple);
+  letter-spacing: 2px;
+}
+
+.surgery-header h2 {
+  font-family: var(--font-heading);
+  font-size: 20px;
+  color: #fff;
+  letter-spacing: 1px;
+}
+
+.surgery-tabs {
+  display: flex;
+  gap: 8px;
+}
+
+.tab-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tab-btn:hover {
+  background: rgba(168, 85, 247, 0.15);
+  color: #fff;
+}
+
+.tab-btn.active {
+  background: rgba(168, 85, 247, 0.25);
+  border-color: var(--purple);
+  color: #fff;
+  box-shadow: 0 0 12px var(--purple-glow);
+}
+
+.surgery-content-grid {
+  display: grid;
+  grid-template-columns: 580px 1fr;
+  gap: 24px;
+}
+
+.surgery-arena-wrap {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.surgery-arena-header {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.trajectory-ident-badge {
+  color: var(--amber);
+}
+
+#surgeryCanvas {
+  width: 100%;
+  height: 380px;
+  display: block;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+}
+
+.surgery-playback-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.surgery-playback-bar input[type="range"] {
+  flex: 1;
+  accent-color: var(--purple);
+}
+
+.surgery-table-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.table-title {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+}
+
+.surgery-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.surgery-table th {
+  text-align: left;
+  padding: 10px;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.surgery-table td {
+  padding: 12px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.surgery-table tr.row-active {
+  background: rgba(168, 85, 247, 0.1);
+}
+
+.tag-intact { color: var(--cyan); }
+.tag-lesioned { color: var(--amber); }
+
+.status-escaped {
+  color: var(--cyan);
+  font-weight: 700;
+  padding: 2px 6px;
+  background: rgba(0, 240, 255, 0.1);
+  border-radius: 3px;
+}
+
+.status-caught {
+  color: var(--crimson);
+  font-weight: 700;
+  padding: 2px 6px;
+  background: rgba(255, 51, 102, 0.1);
+  border-radius: 3px;
+}
+
+.surgery-insight-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--purple);
+  border-radius: 4px;
+  padding: 16px;
+}
+
+.surgery-insight-card h4 {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  color: var(--purple);
+  margin-bottom: 8px;
+}
+
+.surgery-insight-card p {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+
+/* ============================================================
+   ABOUT DRAWER (§10)
+   ============================================================ */
+.about-drawer {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  pointer-events: none;
+  z-index: 1000;
+  visibility: hidden;
+  transition: visibility 0.3s;
+}
+
+.about-drawer.open {
+  pointer-events: auto;
+  visibility: visible;
+}
+
+.drawer-overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.about-drawer.open .drawer-overlay {
+  opacity: 1;
+}
+
+.drawer-content {
+  position: absolute;
+  top: 0; right: 0; bottom: 0;
+  width: 640px;
+  max-width: 90vw;
+  background: #080d14;
+  border-left: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: -10px 0 40px rgba(0, 0, 0, 0.8);
+}
+
+.about-drawer.open .drawer-content {
+  transform: translateX(0);
+}
+
+.drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.drawer-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--cyan);
+  letter-spacing: 2px;
+}
+
+.drawer-header h2 {
+  font-family: var(--font-heading);
+  font-size: 18px;
+  color: #fff;
+}
+
+.close-drawer-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 4px;
+}
+
+.close-drawer-btn:hover {
+  color: #fff;
+}
+
+.drawer-scrollable {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.disclosure-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 16px;
+}
+
+.disclosure-card h3 {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--cyan);
+  margin-bottom: 10px;
+}
+
+.disclosure-card p, .disclosure-card li {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+
+.disclosure-card ul {
+  padding-left: 20px;
+  margin: 10px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.disclosure-card a {
+  color: var(--cyan);
+  text-decoration: none;
+}
+.disclosure-card a:hover {
+  text-decoration: underline;
+}
+
+/* ============================================================
+   RESPONSIVE LAYOUT PASS
+   ============================================================ */
+@media (max-width: 1024px) {
+  .experiment-view {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr auto;
+    overflow-y: auto;
+  }
+
+  .brain-panel {
+    height: 400px;
+  }
+
+  .surgery-content-grid {
+    grid-template-columns: 1fr;
+  }
+}

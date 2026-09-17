@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FLY ESCAPE — Drosophila Connectome Experiment</title>
+    <meta
+      name="description"
+      content="Can you catch a 166,000-neuron brain? An interactive Drosophila escape experiment driven by genuine biological connectomes (FlyWire FAFB and MaleCNS v1.0)."
+    />
+    <link rel="stylesheet" href="src/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <!-- Top Application Header -->
+      <header class="app-header">
+        <div class="brand-section">
+          <div class="brand-logo">FLY <span class="accent-cyan">ESCAPE</span></div>
+          <nav class="nav-links">
+            <button type="button" class="nav-btn active" id="navExperiment">EXPERIMENT</button>
+            <button type="button" class="nav-btn" id="navReplay">CANONICAL REPLAY</button>
+            <button type="button" class="nav-btn" id="navSurgery">BRAIN SURGERY</button>
+            <button type="button" class="nav-btn" id="navAbout">ABOUT / LIMITS</button>
+          </nav>
+        </div>
+
+        <!-- Non-negotiable UI Badge (§11) inserted here dynamically -->
+        <div id="headerBadgeHolder"></div>
+      </header>
+
+      <!-- Dynamic Screen Mount Area -->
+      <main class="screen-container" id="screenMount"></main>
+    </div>
+
+    <script type="module" src="src/main.ts"></script>
+  </body>
+</html>
