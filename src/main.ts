@@ -20,6 +20,7 @@ import { ReplayControls } from './ui/ReplayControls';
 import { BrainSurgeryPanel } from './ui/BrainSurgeryPanel';
 import { AboutDrawer } from './ui/AboutDrawer';
 import { ConnectomeLabView } from './app/ConnectomeLabView';
+import { CausalLabView } from './app/CausalLabView';
 
 class AppOrchestrator {
   private state: AppState;
@@ -44,6 +45,9 @@ class AppOrchestrator {
 
   // Connectome Lab ("God Mode")
   private connectomeLabView: ConnectomeLabView | null = null;
+
+  // Causal Discovery Lab ("Neural Circuit Debugger")
+  private causalLabView: CausalLabView | null = null;
 
   // Replay & Surgery components
   private replayControls: ReplayControls | null = null;
@@ -102,6 +106,7 @@ class AppOrchestrator {
   private bindNav(): void {
     const btnExp = document.getElementById('navExperiment');
     const btnLab = document.getElementById('navLab');
+    const btnCausal = document.getElementById('navCausal');
     const btnReplay = document.getElementById('navReplay');
     const btnSurgery = document.getElementById('navSurgery');
     const btnAbout = document.getElementById('navAbout');
@@ -114,6 +119,11 @@ class AppOrchestrator {
     btnLab?.addEventListener('click', () => {
       this.updateNavButtons('navLab');
       this.renderLabScreen();
+    });
+
+    btnCausal?.addEventListener('click', () => {
+      this.updateNavButtons('navCausal');
+      this.renderCausalLabScreen();
     });
 
     btnReplay?.addEventListener('click', () => {
@@ -161,6 +171,9 @@ class AppOrchestrator {
             <button type="button" class="cyber-action-btn secondary-lab-btn" id="btnStartLab">
               [ ⚡ ENTER CONNECTOME LAB (GOD MODE) ]
             </button>
+            <button type="button" class="cyber-action-btn tertiary-causal-btn" id="btnStartCausal">
+              [ 🔬 ENTER CAUSAL LAB (CIRCUIT DEBUGGER) ]
+            </button>
           </div>
           <div class="home-footer-note">
             Zero trained AI · Real EM connectomes (FlyWire FAFB v783 & MaleCNS v1.0) · 100% Static WebAssembly/JS
@@ -180,6 +193,12 @@ class AppOrchestrator {
       this.updateNavButtons('navLab');
       this.renderLabScreen();
     });
+
+    const btnCausal = document.getElementById('btnStartCausal');
+    btnCausal?.addEventListener('click', () => {
+      this.updateNavButtons('navCausal');
+      this.renderCausalLabScreen();
+    });
   }
 
   /**
@@ -192,6 +211,18 @@ class AppOrchestrator {
     this.screenMount.innerHTML = '';
 
     this.connectomeLabView = new ConnectomeLabView(this.screenMount, this.liveEngine);
+  }
+
+  /**
+   * Causal Discovery Lab Screen ("Neural Circuit Debugger")
+   */
+  private renderCausalLabScreen(): void {
+    this.stopExperiment();
+    this.stopReplayLoop();
+    this.state.setScreen('causality');
+    this.screenMount.innerHTML = '';
+
+    this.causalLabView = new CausalLabView(this.screenMount, this.liveEngine);
   }
 
   /**
@@ -622,6 +653,8 @@ class AppOrchestrator {
     this.neuroRenderer2D?.stop();
     this.brainView3D?.stop();
     this.connectomeLabView?.stop();
+    this.causalLabView?.dispose();
+    this.causalLabView = null;
   }
 
   private handleScreenChange(_screen: ScreenId): void {

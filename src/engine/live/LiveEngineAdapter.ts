@@ -18,6 +18,7 @@ export interface LiveEngineCallbacks {
   onStats?: (stats: { avgTickMs: number; firedPct: number; activePct: number }) => void;
   onError?: (err: string) => void;
   onProgress?: (loadedBytes: number, totalBytes: number) => void;
+  onBreakpointHit?: (bpId: string, tick: number, spikes: Record<string, number>) => void;
 }
 
 export class LiveEngineAdapter {
@@ -40,6 +41,9 @@ export class LiveEngineAdapter {
   private accumFlight: number = 0;
   private accumStartle: number = 0;
   private escapeTriggeredThisTick: boolean = false;
+
+  // Dynamic milestone extraction: records first tick each critical circuit fires
+  private dynamicMilestones: Record<string, number> = {};
 
   private callbacks: LiveEngineCallbacks = {};
 
@@ -137,6 +141,7 @@ export class LiveEngineAdapter {
     this.accumFlight = 0;
     this.accumStartle = 0;
     this.escapeTriggeredThisTick = false;
+    this.dynamicMilestones = {};
     this.worker.postMessage({ type: 'reset' });
   }
 
@@ -241,6 +246,77 @@ export class LiveEngineAdapter {
     });
   }
 
+  /**
+   * Genuine biophysical interventions: SILENCE, INVERT, AMPLIFY, RESTORE
+   */
+  public applyInterventions(
+    interventions: Array<{
+      type: 'silence' | 'stimulate' | 'invert' | 'amplify' | 'restore';
+      groupName: string;
+      factor?: number;
+    }>
+  ): void {
+    if (!this.worker || !this.isReady) return;
+    const workerInterventions = interventions
+      .map((inv) => ({
+        type: inv.type,
+        groupId: this.groupNameToId[inv.groupName],
+        factor: inv.factor,
+      }))
+      .filter((inv) => inv.groupId !== undefined);
+
+    this.worker.postMessage({
+      type: 'setInterventions',
+      interventions: workerInterventions,
+    });
+  }
+
+  /**
+   * Single-step execution for GDB debugger
+   */
+  public step(count: number = 1): void {
+    if (!this.worker || !this.isReady) return;
+    this.worker.postMessage({ type: 'step', count });
+  }
+
+  /**
+   * Sets breakpoint rules for GDB-style simulation halting
+   */
+  public setBreakpoints(
+    breakpoints: Array<{
+      id: string;
+      type: 'spike' | 'step' | 'descending';
+      groupName?: string;
+      threshold?: number;
+      step?: number;
+    }>
+  ): void {
+    if (!this.worker || !this.isReady) return;
+    const workerBps = breakpoints.map((bp) => ({
+      id: bp.id,
+      type: bp.type,
+      groupId: bp.groupName ? this.groupNameToId[bp.groupName] : undefined,
+      threshold: bp.threshold,
+      step: bp.step,
+    }));
+
+    this.worker.postMessage({
+      type: 'setBreakpoints',
+      breakpoints: workerBps,
+    });
+  }
+
+  /**
+   * Returns dynamically measured milestone firing latencies in milliseconds
+   */
+  public getDynamicTimeline(): Record<string, number> {
+    const result: Record<string, number> = {};
+    for (const [k, v] of Object.entries(this.dynamicMilestones)) {
+      result[k] = v * 100; // 100ms per tick
+    }
+    return result;
+  }
+
   private handleMessage(e: MessageEvent): void {
     const data = e.data;
     switch (data.type) {
@@ -256,6 +332,17 @@ export class LiveEngineAdapter {
 
       case 'tick':
         this.processWorkerTick(data);
+        break;
+
+      case 'breakpointHit':
+        this.isRunning = false;
+        const bpGroupSpikes: Record<string, number> = {};
+        if (data.groupSpikeCounts) {
+          for (let g = 0; g < this.groupCount; g++) {
+            bpGroupSpikes[this.groupIdToName[g]] = data.groupSpikeCounts[g] || 0;
+          }
+        }
+        this.callbacks.onBreakpointHit?.(data.breakpointId, data.tickCount, bpGroupSpikes);
         break;
 
       case 'stats':
@@ -305,6 +392,11 @@ export class LiveEngineAdapter {
           regionalFired.drives += count;
         } else {
           regionalFired.motor += count;
+        }
+
+        // Dynamically record first spike time per critical circuit
+        if (count > 0 && this.dynamicMilestones[name] === undefined) {
+          this.dynamicMilestones[name] = tickCount;
         }
       }
     }

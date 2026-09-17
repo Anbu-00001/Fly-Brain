@@ -64,6 +64,11 @@ var groupRecvInput = null;       // Uint8Array[numGroups] per-tick scratch
 var groupFiredThisTick = null;   // Uint8Array[numGroups] per-tick scratch
 var groupStimulatedThisTick = null; // Uint8Array[numGroups] per-tick scratch
 
+/* genuine biophysical intervention arrays & debugger state */
+var groupWeightScales = null;    // Float32Array[numGroups] (1.0 = normal, -1.0 = inverted, >1.0 = amplified)
+var silencedGroups = null;       // Uint8Array[numGroups] (1 = clamped hyperpolarized -100mV, no spikes)
+var activeBreakpoints = [];      // Array of breakpoint rules
+
 /* ---------- decompressGzip ---------- */
 
 async function decompressGzip(buffer) {
@@ -231,11 +236,14 @@ function buildGroupStructures() {
 	groupRecvInput = new Uint8Array(numGroups);
 	groupFiredThisTick = new Uint8Array(numGroups);
 	groupStimulatedThisTick = new Uint8Array(numGroups);
+	groupWeightScales = new Float32Array(numGroups);
+	groupWeightScales.fill(1.0);
+	silencedGroups = new Uint8Array(numGroups);
 }
 
-/* ---------- tick (neuropil-gated) ---------- */
+/* ---------- tick (neuropil-gated with biophysical interventions & debugger) ---------- */
 
-function tick() {
+function tick(singleStep) {
 	var t0 = performance.now();
 	var firedNeuronCount = 0;
 	var groupSpikeCounts = new Uint16Array(numGroups);
@@ -266,6 +274,11 @@ function tick() {
 		if (!groupActive[g]) continue;
 		var start = groupOffset[g];
 		var end = groupOffset[g + 1];
+		if (silencedGroups && silencedGroups[g]) {
+			V.fill(-100, start, end);
+			refractory.fill(999, start, end);
+			continue;
+		}
 		activeNeuronCount += end - start;
 		for (var i = start; i < end; i++) {
 			if (refractory[i] > 0) {
@@ -281,21 +294,25 @@ function tick() {
 	if (sustainedIndices) {
 		for (var k = 0; k < sustainedIndices.length; k++) {
 			var si = sustainedIndices[k];
-			if (si < N && refractory[si] === 0) {
+			if (si < N && refractory[si] === 0 && (!silencedGroups || !silencedGroups[groupId[si]])) {
 				V[si] += sustainedIntensities[k];
 			}
 		}
 	}
 
-	/* step 2 -- propagate from fired neurons in active groups */
+	/* step 2 -- propagate from fired neurons in active groups (with invert/amplify scale) */
 	for (var g = 0; g < numGroups; g++) {
-		if (!groupActive[g]) continue;
+		if (!groupActive[g] || (silencedGroups && silencedGroups[g])) continue;
+		var wScale = groupWeightScales ? groupWeightScales[g] : 1.0;
 		for (var i = groupOffset[g]; i < groupOffset[g + 1]; i++) {
 			if (fired[i] === 0) continue;
 			for (var j = rowPtr[i]; j < rowPtr[i + 1]; j++) {
 				var target = colIdx[j];
-				V[target] += values[j];
-				groupRecvInput[groupId[target]] = 1;
+				var tg = groupId[target];
+				if (!silencedGroups || !silencedGroups[tg]) {
+					V[target] += values[j] * wScale;
+					groupRecvInput[tg] = 1;
+				}
 			}
 		}
 	}
@@ -313,6 +330,10 @@ function tick() {
 		if (!groupActive[g]) continue;
 		var start = groupOffset[g];
 		var end = groupOffset[g + 1];
+		if (silencedGroups && silencedGroups[g]) {
+			fired.fill(0, start, end);
+			continue;
+		}
 		for (var i = start; i < end; i++) {
 			fired[i] = 0;
 			if (refractory[i] === 0 && V[i] >= threshold) {
@@ -345,15 +366,51 @@ function tick() {
 		}
 	}
 
+	/* check breakpoints before continuing */
+	var hitBp = null;
+	if (activeBreakpoints && activeBreakpoints.length > 0) {
+		for (var b = 0; b < activeBreakpoints.length; b++) {
+			var bp = activeBreakpoints[b];
+			if (bp.type === 'spike') {
+				if (bp.groupId !== undefined && groupSpikeCounts[bp.groupId] > (bp.threshold || 0)) {
+					hitBp = bp;
+					break;
+				}
+			} else if (bp.type === 'step') {
+				if (tickCount >= bp.step) {
+					hitBp = bp;
+					break;
+				}
+			} else if (bp.type === 'descending') {
+				if (bp.groupId !== undefined && groupSpikeCounts[bp.groupId] >= (bp.threshold || 10)) {
+					hitBp = bp;
+					break;
+				}
+			}
+		}
+	}
+
 	/* post fire state to main thread */
 	self.postMessage({
 		type: 'tick',
 		fireState: fired,
 		firedNeurons: firedNeuronCount,
 		groupSpikeCounts: groupSpikeCounts,
-		tickCount: tickCount
+		tickCount: tickCount,
+		breakpointHit: hitBp ? hitBp.id : null
 	});
 	tickCount++;
+
+	if (hitBp) {
+		running = false;
+		self.postMessage({
+			type: 'breakpointHit',
+			breakpointId: hitBp.id,
+			tickCount: tickCount - 1,
+			groupSpikeCounts: groupSpikeCounts
+		});
+		return;
+	}
 
 	/* performance stats */
 	var elapsed = performance.now() - t0;
@@ -383,8 +440,8 @@ function tick() {
 		cumulativeFiredCount = 0;
 	}
 
-	/* schedule next tick at target rate */
-	if (running) {
+	/* schedule next tick at target rate if running and not single-stepping */
+	if (running && !singleStep) {
 		var interval = Math.max(0, Math.floor(1000 / targetTickRate - elapsed));
 		setTimeout(tick, interval);
 	}
@@ -436,6 +493,42 @@ self.onmessage = function (e) {
 		running = false;
 		break;
 
+	case 'step':
+		var count = e.data.count || 1;
+		for (var s = 0; s < count; s++) {
+			tick(true);
+		}
+		break;
+
+	case 'setInterventions':
+		var list = e.data.interventions || [];
+		for (var k = 0; k < list.length; k++) {
+			var inv = list[k];
+			if (inv.groupId !== undefined && inv.groupId < numGroups) {
+				var g = inv.groupId;
+				if (inv.type === 'silence') {
+					if (silencedGroups) silencedGroups[g] = 1;
+					var start = groupOffset[g];
+					var end = groupOffset[g + 1];
+					if (V) V.fill(-100.0, start, end);
+					if (refractory) refractory.fill(999, start, end);
+					if (fired) fired.fill(0, start, end);
+				} else if (inv.type === 'invert') {
+					if (groupWeightScales) groupWeightScales[g] = -1.0;
+				} else if (inv.type === 'amplify') {
+					if (groupWeightScales) groupWeightScales[g] = inv.factor || 2.0;
+				} else if (inv.type === 'restore') {
+					if (silencedGroups) silencedGroups[g] = 0;
+					if (groupWeightScales) groupWeightScales[g] = 1.0;
+				}
+			}
+		}
+		break;
+
+	case 'setBreakpoints':
+		activeBreakpoints = e.data.breakpoints || [];
+		break;
+
 	case 'stimulate':
 		var indices = e.data.indices;
 		var intensities = e.data.intensities;
@@ -464,6 +557,9 @@ self.onmessage = function (e) {
 		refractory.fill(0);
 		sustainedIndices = null;
 		sustainedIntensities = null;
+		if (groupWeightScales) groupWeightScales.fill(1.0);
+		if (silencedGroups) silencedGroups.fill(0);
+		activeBreakpoints = [];
 		if (groupActive) {
 			groupActive.fill(0);
 			groupCooldown.fill(0);
