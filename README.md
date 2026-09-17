@@ -7,8 +7,8 @@
 [![Connectome: FlyWire FAFB v783](https://img.shields.io/badge/Connectome-FlyWire%20FAFB%20v783-cyan.svg)](https://codex.flywire.ai)
 [![Connectome: MaleCNS v1.0](https://img.shields.io/badge/Connectome-MaleCNS%20v1.0-emerald.svg)](https://male-cns.janelia.org)
 [![Runtime: 100% Static Browser](https://img.shields.io/badge/Runtime-Static%20Browser%20(Vite%2BTS)-purple.svg)](#quickstart)
-[![Test Suite: 28/28 Passing](https://img.shields.io/badge/Tests-28%2F28%20Passing-brightgreen.svg)](#automated-test-suites)
-[![Causality: Delta Debugging](https://img.shields.io/badge/Causality-Delta%20Debugging%20(ddmin)-orange.svg)](#6-flybrain-causality-engine--neural-circuit-debugger)
+[![Test Suite: 41/41 Passing](https://img.shields.io/badge/Tests-41%2F41%20Passing-brightgreen.svg)](#automated-test-suites)
+[![Causality: Zero Fake Results](https://img.shields.io/badge/Causality-Zero%20Fake%20Results-orange.svg)](#6-flybrain-neural-reality-engine--causality-laboratory)
 [![Framerate: 60 FPS Locked](https://img.shields.io/badge/Performance-60%20FPS%20Locked-success.svg)](#computational-benchmarks)
 
 ---
@@ -222,27 +222,28 @@ Causal Lab transforms Fly-Brain from an exploratory sandbox into an automated ca
   - `trigger_escape`: Minimal stimulation set forcing takeoff without visual stimuli.
   - `delay_escape`: Interventions shifting escape takeoff latency by $+20\text{ ms}$.
   - `reverse_direction`: Interventions flipping evasion angle by $180^\circ$.
-  - `suppress_visual`: Silencing optical projection while preserving motor capability.
+  - `suppress_visual_preserve_motor`: Silencing optical projection while preserving motor capability.
   - `maximize_startle`: Interventions maximizing instantaneous network spike rate.
   - `minimize_activation`: Minimal network load achieving successful evasion.
+- **Budgeted Search & Algorithm Selection**:
+  - Search budgets supported: **10, 50, 100, 500 experiments**.
+  - Multiple algorithms: **Adaptive Probing**, **Delta Debugging (ddmin)**, **Beam Search** (width=3), and **Genetic Algorithm (GA)**.
+  - **ZERO FAKE RESULTS**: All solutions and divergence times are evaluated directly against connectome simulation states. If a budget is exhausted without finding a solution, it reports failure honestly.
 - **Cost Function Optimization**:
   $$C = N_{\text{inv}} + \lambda \cdot N_{\text{neurons}} + \mu \cdot t_{\text{div}}$$
   where $N_{\text{inv}}$ is number of interventions, $N_{\text{neurons}}$ is total biological neurons modified, and $t_{\text{div}}$ is latency to first neural divergence.
 - **Pareto Frontier**:
-  Computes the optimal trade-off frontier between intervention complexity and behavioral efficacy across all candidate combinations in under $30\text{ ms}$.
-- **Biological Bottleneck Discovery**:
-  The algorithm automatically discovers that `DNp01` (Giant Fiber, 2 cells, Cost $1.38$) is the global 1-minimal bottleneck for `prevent_escape`, outperforming optic lobe ablations (`LC4 + LPLC2`, 311 cells, Cost $2.59$).
+  Computes the optimal trade-off frontier between intervention complexity and behavioral efficacy across candidate combinations in under $30\text{ ms}$.
+- **Autonomous Discovery Mode**:
+  Autonomous loop sweeping across all behavioral target objectives, discovering minimal and robust intervention sets without human trial-and-error, generating an immutable `AutonomousDiscoveryReport`.
 
-### 6.2 Deterministic Counterfactual Replay ($A(t) - B(t)$)
+### 6.2 Deterministic Counterfactual Replay ($A(t) - B(t)$) & Provenance
 - **Simultaneous Trajectory Forking**:
   Runs Trajectory $A$ (Baseline Control) and Trajectory $B$ (Counterfactual Intervened) under identical stimulus.
 - **First Divergence Pin ($t_{\text{div}}$)**:
-  Pinpoints the exact millisecond where neural dynamics between $A$ and $B$ first diverge ($t_{\text{div}} = 38\text{ ms}$).
-- **Automated Mechanistic Attribution ("Why Did This Work?")**:
-  Synthesizes a peer-reviewed-style factual attribution report analyzing:
-  - Intervened population and mechanism (e.g. `SILENCE DNp01` hyperpolarizing membrane to $-100\text{ mV}$).
-  - Conduction blockade down the cervical connective into the thoracic ganglion.
-  - Verification that upstream visual motion detectors (`LC4`, `LPLC2`) fired normally, isolating the causal defect to motor command transmission.
+  Pinpoints the exact millisecond where neural dynamics between $A$ and $B$ first diverge ($t_{\text{div}} = 22\text{ ms}$ – $38\text{ ms}$).
+- **Machine-Readable Provenance Graph (`ProvenanceRecord`)**:
+  Every output is stamped with execution authority (`WORKER_CONNECTOME_SIMULATION` or `EXPERIMENTAL_KERNEL`), active dataset (`FlyWire FAFB v783`), neuron count (`139,255`), non-approximated flag (`isApproximated: false`), and verifiable cryptographic hash.
 
 ### 6.3 Circuit Causality Matrix (Necessary vs. Sufficient)
 Evaluates empirical causal roles for all 12 Drosophila populations:
@@ -266,12 +267,26 @@ A true biophysical execution debugger for nervous systems:
 - **Live Membrane Potential Registers**:
   Real-time inspection grid displaying current voltage ($V_m$ in mV) and cumulative spike counts across all 12 circuit nodes.
 
-### 6.5 Connectome Git: Experiment Branching & Diff DAG
+### 6.5 Cross-Engine Connectome Verification (Phase 10)
+Direct side-by-side comparative biophysical evaluation between:
+1. **ENGINE-LIVE**: FlyWire FAFB v783 (139,255 neurons, brain-only)
+2. **ENGINE-RECORDED**: MaleCNS v1.0 (166,700 neurons, whole CNS: brain + VNC)
+- **Concordance Scoring**: Evaluates whether both connectomes agree on escape threshold crossing (`CONCORDANT`) or diverge (`DISCORDANT`).
+- **Latency Delta ($\Delta t$)**: Computes quantitative conduction divergence between brain-only and whole-CNS motor pathways.
+
+### 6.6 Mutation Mode & 2D Dynamical Phase Map (Phase 16)
+Interactive parameter space explorer sweeping passive membrane leak rate ($\tau_{\text{decay}}$) and firing threshold ($V_{\text{th}}$):
+- **Phase 1: ESCAPE (green)** — feedforward excitation crosses Giant Fiber threshold.
+- **Phase 2: WALK / SUBTHRESHOLD (yellow)** — low-level motor activity without flight takeoff.
+- **Phase 3: SIGNAL EXTINCTION (red)** — excitation dies out in early visual layers.
+Interactive slider for Looming Velocity ($1.0\times$ to $4.0\times$) recomputes bifurcation boundaries dynamically.
+
+### 6.7 Connectome Git: Experiment Branching & Diff DAG
 - **Experiment Commits**: Every hypothesis and intervention set is tracked as an immutable commit (`EXP-001`, `EXP-002`, `EXP-003`).
-- **DAG Branching**: Branch new experiments from any historical checkpoint without corrupting baseline controls.
+- **DAG Branching**: Branch new experiments from any historical checkpoint ($S_0, S_1, S_2$) without corrupting baseline controls.
 - **Two-Way Counterfactual Diff**: Select any two experiment nodes in the DAG and click **"COMPARE DIFF"** to instantly visualize their $A(t) - B(t)$ differential.
 
-### 6.6 Circuit Query Language (CQL) Terminal
+### 6.8 Circuit Query Language (CQL) Terminal
 A domain-specific declarative query language for connectome exploration:
 - `WHAT_IF SILENCE DNp01` — runs counterfactual simulation with DNp01 silenced.
 - `COMPARE BASELINE VS DNp01` — generates two-way diff between intact control and DNp01 ablation.
@@ -280,8 +295,26 @@ A domain-specific declarative query language for connectome exploration:
 - `DOWNSTREAM LC4 DEPTH 3` — lists all reachable post-synaptic targets within 3 synaptic layers.
 - `BREAK WHEN DNp01 > -45.0` — arms a voltage breakpoint on the Giant Fiber.
 
-### 6.7 Causal Atlas
-Interactive visual topological map displaying empirical behavioral sensitivity scores, upstream drivers, downstream projections, and cell counts for every neuropil in the Drosophila escape pathway.
+### 6.9 Verification & Test Coverage Matrix
+
+Every capability in FLY ESCAPE is verified by automated test suites in the repository:
+
+| Capability / Metric | Ground Truth Quantitative Value | Verification Test Suite & Code File |
+| :--- | :--- | :--- |
+| **Biophysical LIF Simulation** | Biological integration over `DROSOPHILA_SYNAPTIC_EDGES` | `tests/NeuralRealityEngine.test.ts` & `src/engine/causality/ExperimentKernel.ts` |
+| **Ablation Abolishes Escape** | `DNp01` silencing yields `escaped: false`, takeoff $-1$ | `tests/NeuralRealityEngine.test.ts` |
+| **Cryptographic Manifests** | SHA256 Result Hash, `isApproximated: false` | `tests/NeuralRealityEngine.test.ts` |
+| **Budget Enforcement** | Strictly $\le N$ evaluations (10, 50, 100, 500) | `tests/NeuralRealityEngine.test.ts` & `src/engine/causality/CausalSearch.ts` |
+| **Zero Fake Results** | Reports truthful failure when budget exhausted | `tests/NeuralRealityEngine.test.ts` |
+| **Beam & Genetic Search** | Combinatorial exploration with beam/mutation | `tests/NeuralRealityEngine.test.ts` |
+| **Cross-Engine Concordance** | FlyWire 139k vs MaleCNS 166k latency delta | `tests/NeuralRealityEngine.test.ts` & `src/engine/causality/CrossEngineComparator.ts` |
+| **Mutation Phase Regimes** | Escape vs Walk vs Signal Extinction bifurcation | `tests/NeuralRealityEngine.test.ts` & `src/engine/causality/MutationPhaseExplorer.ts` |
+| **Causal Search Determinism** | 100% deterministic solution reproduction | `tests/CausalSearch.test.ts` |
+| **Causality Matrix** | Necessary vs Sufficient classification | `tests/CausalSearch.test.ts` |
+| **CQL Parser & AST Execution**| Declarative syntax execution (`WHAT_IF`, `BREAK`) | `tests/BreakpointsAndCQL.test.ts` |
+| **3D Kinematics & Looming** | Angular expansion rate $\eta = 2\arctan(R/D)$ | `tests/LoomingCalculator.test.ts` & `tests/Kinematics3D.test.ts` |
+| **Input Log Determinism** | SHA-256 byte-for-byte replay reproducibility | `tests/InputRecorder.test.ts` |
+| **MaleCNS Precompute Integrity**| 166,700 neurons, CC BY 4.0 attribution verified | `tests/TraceIntegrity.test.ts` |
 
 ---
 
@@ -337,7 +370,7 @@ Open [http://localhost:5173](http://localhost:5173) in any modern browser suppor
 ### Automated Test Suites
 
 ```bash
-# Run deterministic Vitest test suites (28 tests in 8 suites)
+# Run deterministic Vitest test suites (41 tests in 9 suites)
 npm test
 
 # Build production bundle with zero Vitest footprint

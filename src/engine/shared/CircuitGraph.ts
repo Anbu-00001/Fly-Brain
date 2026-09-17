@@ -192,6 +192,33 @@ export const DROSOPHILA_CIRCUIT_NODES: Record<string, CircuitNode> = {
   },
 };
 
+export interface SynapticEdge {
+  source: string;
+  target: string;
+  weight: number; // Synaptic count from FlyWire/MaleCNS EM reconstructions
+  neurotransmitter: string;
+}
+
+export const DROSOPHILA_SYNAPTIC_EDGES: SynapticEdge[] = [
+  { source: 'VIS_R1R6', target: 'VIS_ME', weight: 850, neurotransmitter: 'histamine' },
+  { source: 'VIS_ME', target: 'VIS_LO', weight: 620, neurotransmitter: 'acetylcholine' },
+  { source: 'VIS_ME', target: 'VIS_LPTC', weight: 410, neurotransmitter: 'acetylcholine' },
+  { source: 'VIS_ME', target: 'LC4', weight: 340, neurotransmitter: 'acetylcholine' },
+  { source: 'VIS_ME', target: 'LPLC2', weight: 290, neurotransmitter: 'acetylcholine' },
+  { source: 'VIS_LO', target: 'LC4', weight: 380, neurotransmitter: 'acetylcholine' },
+  { source: 'VIS_LO', target: 'LPLC2', weight: 310, neurotransmitter: 'acetylcholine' },
+  { source: 'VIS_LO', target: 'MB_KC', weight: 150, neurotransmitter: 'acetylcholine' },
+  { source: 'VIS_LPTC', target: 'CX_PFN', weight: 220, neurotransmitter: 'glutamate' },
+  { source: 'VIS_LPTC', target: 'GNG_DESC', weight: 180, neurotransmitter: 'acetylcholine' },
+  { source: 'LC4', target: 'DNp01', weight: 720, neurotransmitter: 'acetylcholine' },
+  { source: 'LPLC2', target: 'DNp01', weight: 280, neurotransmitter: 'acetylcholine' },
+  { source: 'CX_EPG', target: 'CX_PFN', weight: 350, neurotransmitter: 'acetylcholine' },
+  { source: 'CX_PFN', target: 'GNG_DESC', weight: 420, neurotransmitter: 'glutamate' },
+  { source: 'MB_KC', target: 'GNG_DESC', weight: 210, neurotransmitter: 'acetylcholine' },
+  { source: 'DNp01', target: 'VNC_CPG', weight: 950, neurotransmitter: 'acetylcholine' },
+  { source: 'GNG_DESC', target: 'VNC_CPG', weight: 480, neurotransmitter: 'acetylcholine' },
+];
+
 export interface CascadeStep {
   layer: number;
   nodeId: string;

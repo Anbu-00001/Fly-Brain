@@ -68,6 +68,9 @@ var groupStimulatedThisTick = null; // Uint8Array[numGroups] per-tick scratch
 var groupWeightScales = null;    // Float32Array[numGroups] (1.0 = normal, -1.0 = inverted, >1.0 = amplified)
 var silencedGroups = null;       // Uint8Array[numGroups] (1 = clamped hyperpolarized -100mV, no spikes)
 var activeBreakpoints = [];      // Array of breakpoint rules
+var lastTickFiredCount = 0;
+var lastGroupSpikeCounts = null;
+var snapshots = {};              // NeuralSnapshot storage indexed by snapshot ID
 
 /* ---------- decompressGzip ---------- */
 
@@ -386,30 +389,55 @@ function tick(singleStep) {
 					hitBp = bp;
 					break;
 				}
+			} else if (bp.type === 'threshold') {
+				if (bp.groupId !== undefined && bp.groupId < numGroups) {
+					var gStart = groupOffset[bp.groupId];
+					var gEnd = groupOffset[bp.groupId + 1];
+					var vThresh = bp.threshold !== undefined ? bp.threshold : 0.8;
+					for (var vi = gStart; vi < gEnd; vi++) {
+						if (V[vi] >= vThresh) {
+							hitBp = bp;
+							break;
+						}
+					}
+					if (hitBp) break;
+				}
+			} else if (bp.type === 'input') {
+				if (bp.groupId !== undefined && groupRecvInput[bp.groupId] === 1) {
+					hitBp = bp;
+					break;
+				}
 			}
 		}
 	}
 
-	/* post fire state to main thread */
-	self.postMessage({
-		type: 'tick',
-		fireState: fired,
-		firedNeurons: firedNeuronCount,
-		groupSpikeCounts: groupSpikeCounts,
-		tickCount: tickCount,
-		breakpointHit: hitBp ? hitBp.id : null
-	});
+	lastTickFiredCount = firedNeuronCount;
+	lastGroupSpikeCounts = groupSpikeCounts;
+
+	if (!silent) {
+		/* post fire state to main thread */
+		self.postMessage({
+			type: 'tick',
+			fireState: fired,
+			firedNeurons: firedNeuronCount,
+			groupSpikeCounts: groupSpikeCounts,
+			tickCount: tickCount,
+			breakpointHit: hitBp ? hitBp.id : null
+		});
+	}
 	tickCount++;
 
 	if (hitBp) {
 		running = false;
-		self.postMessage({
-			type: 'breakpointHit',
-			breakpointId: hitBp.id,
-			tickCount: tickCount - 1,
-			groupSpikeCounts: groupSpikeCounts
-		});
-		return;
+		if (!silent) {
+			self.postMessage({
+				type: 'breakpointHit',
+				breakpointId: hitBp.id,
+				tickCount: tickCount - 1,
+				groupSpikeCounts: groupSpikeCounts
+			});
+		}
+		return hitBp;
 	}
 
 	/* performance stats */
@@ -418,7 +446,7 @@ function tick(singleStep) {
 	tickTimeSamples++;
 	cumulativeFiredCount += firedNeuronCount;
 
-	if (tickTimeSamples >= STATS_INTERVAL) {
+	if (tickTimeSamples >= STATS_INTERVAL && !silent) {
 		var avgMs = tickTimeSum / tickTimeSamples;
 		var avgFired = Math.round(cumulativeFiredCount / tickTimeSamples);
 		var activeGroups = 0;
@@ -445,6 +473,182 @@ function tick(singleStep) {
 		var interval = Math.max(0, Math.floor(1000 / targetTickRate - elapsed));
 		setTimeout(tick, interval);
 	}
+}
+
+/* ---------- Neural Reality Snapshot & Batch Experiment Kernel ---------- */
+
+function createSnapshot(id) {
+	if (!id) id = 'snap_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
+	var snap = {
+		id: id,
+		tickCount: tickCount,
+		timeMs: tickCount * 10.0,
+		V: new Float32Array(V),
+		fired: new Uint8Array(fired),
+		refractory: new Uint8Array(refractory),
+		groupActive: new Uint8Array(groupActive),
+		groupCooldown: new Uint8Array(groupCooldown),
+		silencedGroups: silencedGroups ? new Uint8Array(silencedGroups) : new Uint8Array(numGroups),
+		groupWeightScales: groupWeightScales ? new Float32Array(groupWeightScales) : new Float32Array(numGroups),
+		activeNeuronCount: activeNeuronCount,
+		cumulativeFiredCount: cumulativeFiredCount
+	};
+	snapshots[id] = snap;
+	return snap;
+}
+
+function restoreSnapshot(id) {
+	var snap = snapshots[id];
+	if (!snap) return false;
+	V.set(snap.V);
+	fired.set(snap.fired);
+	refractory.set(snap.refractory);
+	groupActive.set(snap.groupActive);
+	groupCooldown.set(snap.groupCooldown);
+	if (silencedGroups && snap.silencedGroups) silencedGroups.set(snap.silencedGroups);
+	if (groupWeightScales && snap.groupWeightScales) groupWeightScales.set(snap.groupWeightScales);
+	tickCount = snap.tickCount;
+	activeNeuronCount = snap.activeNeuronCount;
+	cumulativeFiredCount = snap.cumulativeFiredCount;
+	return true;
+}
+
+function deleteSnapshot(id) {
+	delete snapshots[id];
+}
+
+function compareSnapshots(idA, idB) {
+	var a = snapshots[idA];
+	var b = snapshots[idB];
+	if (!a || !b) return { error: 'Snapshot not found: ' + (!a ? idA : idB) };
+
+	var divergingNeurons = 0;
+	var maxDeltaV = 0.0;
+	var groupDeltas = new Float32Array(numGroups);
+	var groupDivCount = new Uint32Array(numGroups);
+
+	for (var i = 0; i < N; i++) {
+		var dV = Math.abs(a.V[i] - b.V[i]);
+		if (dV > 0.05 || a.fired[i] !== b.fired[i]) {
+			divergingNeurons++;
+			var g = groupId[i];
+			groupDivCount[g]++;
+			groupDeltas[g] += dV;
+			if (dV > maxDeltaV) maxDeltaV = dV;
+		}
+	}
+
+	var groupReport = [];
+	for (var g = 0; g < numGroups; g++) {
+		if (groupDivCount[g] > 0) {
+			groupReport.push({
+				groupId: g,
+				divergingNeurons: groupDivCount[g],
+				meanDeltaV: groupDeltas[g] / (groupDivCount[g] || 1)
+			});
+		}
+	}
+
+	return {
+		idA: idA,
+		idB: idB,
+		divergingNeurons: divergingNeurons,
+		maxDeltaV: maxDeltaV,
+		divergenceRatio: divergingNeurons / (N || 1),
+		groupReport: groupReport
+	};
+}
+
+function runExperimentBatch(config) {
+	var runId = config.runId || ('exp_' + Date.now());
+	if (config.checkpointId) {
+		restoreSnapshot(config.checkpointId);
+	}
+
+	var interventions = config.interventions || [];
+	for (var k = 0; k < interventions.length; k++) {
+		var inv = interventions[k];
+		if (inv.groupId !== undefined && inv.groupId < numGroups) {
+			var g = inv.groupId;
+			if (inv.type === 'silence') {
+				if (silencedGroups) silencedGroups[g] = 1;
+				var start = groupOffset[g];
+				var end = groupOffset[g + 1];
+				if (V) V.fill(-100.0, start, end);
+				if (refractory) refractory.fill(999, start, end);
+				if (fired) fired.fill(0, start, end);
+			} else if (inv.type === 'invert') {
+				if (groupWeightScales) groupWeightScales[g] = -1.0;
+			} else if (inv.type === 'amplify') {
+				if (groupWeightScales) groupWeightScales[g] = inv.factor || 2.0;
+			} else if (inv.type === 'restore') {
+				if (silencedGroups) silencedGroups[g] = 0;
+				if (groupWeightScales) groupWeightScales[g] = 1.0;
+			}
+		}
+	}
+
+	var steps = config.steps || 30;
+	var trajectory = [];
+	var totalMotorSpikes = 0;
+	var takeoffTick = -1;
+	var firstDivergenceTick = -1;
+	var baselineTrajectory = config.baselineTrajectory || null;
+
+	for (var s = 0; s < steps; s++) {
+		tick(true, true); // single-step, silent
+
+		var descSpikes = lastGroupSpikeCounts ? (lastGroupSpikeCounts[35] || 0) : 0; // GNG_DESC
+		var cpgSpikes = lastGroupSpikeCounts ? (lastGroupSpikeCounts[47] || 0) : 0;  // VNC_CPG
+		var motorFired = (descSpikes > 0 || cpgSpikes > 0);
+		totalMotorSpikes += descSpikes + cpgSpikes;
+
+		if (motorFired && takeoffTick === -1) {
+			takeoffTick = tickCount;
+		}
+
+		if (baselineTrajectory && baselineTrajectory[s]) {
+			var baseTick = baselineTrajectory[s];
+			if (firstDivergenceTick === -1 && lastGroupSpikeCounts) {
+				for (var g = 0; g < numGroups; g++) {
+					if (lastGroupSpikeCounts[g] !== (baseTick.groupSpikes[g] || 0)) {
+						firstDivergenceTick = tickCount;
+						break;
+					}
+				}
+			}
+		}
+
+		if (config.recordTrajectory && lastGroupSpikeCounts) {
+			var snapSpikes = new Uint16Array(lastGroupSpikeCounts);
+			trajectory.push({
+				tick: tickCount,
+				timeMs: tickCount * 10.0,
+				firedNeurons: lastTickFiredCount,
+				groupSpikes: snapSpikes,
+				motorFired: motorFired
+			});
+		}
+
+		if (!config.recordTrajectory && takeoffTick !== -1 && !config.runFull) {
+			break;
+		}
+	}
+
+	return {
+		type: 'batchResult',
+		runId: runId,
+		checkpointId: config.checkpointId,
+		interventions: interventions,
+		stepsRun: s,
+		takeoffTick: takeoffTick,
+		takeoffTimeMs: takeoffTick !== -1 ? takeoffTick * 10.0 : null,
+		escaped: takeoffTick !== -1,
+		totalMotorSpikes: totalMotorSpikes,
+		firstDivergenceTick: firstDivergenceTick,
+		firstDivergenceMs: firstDivergenceTick !== -1 ? firstDivergenceTick * 10.0 : null,
+		trajectory: trajectory
+	};
 }
 
 /* ---------- message handler ---------- */
@@ -577,6 +781,44 @@ self.onmessage = function (e) {
 		if (e.data.leakRate !== undefined) leakRate = e.data.leakRate;
 		if (e.data.threshold !== undefined) threshold = e.data.threshold;
 		if (e.data.refractoryPeriod !== undefined) refractoryPeriod = e.data.refractoryPeriod;
+		break;
+
+	case 'snapshot':
+		var snap = createSnapshot(e.data.id);
+		self.postMessage({
+			type: 'snapshotCreated',
+			id: snap.id,
+			tickCount: snap.tickCount,
+			timeMs: snap.timeMs
+		});
+		break;
+
+	case 'restore':
+		var ok = restoreSnapshot(e.data.id);
+		self.postMessage({
+			type: 'snapshotRestored',
+			id: e.data.id,
+			success: ok,
+			tickCount: tickCount,
+			timeMs: tickCount * 10.0
+		});
+		break;
+
+	case 'deleteSnapshot':
+		deleteSnapshot(e.data.id);
+		break;
+
+	case 'compareSnapshots':
+		var diff = compareSnapshots(e.data.idA, e.data.idB);
+		self.postMessage({
+			type: 'compareResult',
+			diff: diff
+		});
+		break;
+
+	case 'runBatch':
+		var bResult = runExperimentBatch(e.data.config || e.data);
+		self.postMessage(bResult);
 		break;
 	}
 };

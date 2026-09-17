@@ -1,10 +1,18 @@
 /**
  * CausalLabView.ts
  *
- * Master orchestrator for FLYBRAIN: CAUSALITY ENGINE & DISCOVERY LABORATORY.
- * Coordinates Ask The Brain Hero, Counterfactual Diff HUD, Causality Matrix,
- * GDB Breakpoints Debugger, Connectome Git DAG, Causal Atlas, and CQL Terminal,
- * synchronized with real-time 3D connectome visualization.
+ * Master orchestrator for FLYBRAIN: NEURAL REALITY ENGINE & CAUSALITY LABORATORY.
+ * Coordinates:
+ * - Ask The Brain Hero (Autonomous Causal Discovery, Budgeted ddmin/Beam/GA Search)
+ * - Counterfactual Diff HUD ($A(t) - B(t)$ Divergence & Provenance)
+ * - Causality Matrix (10x10 Sensitivity Heatmap)
+ * - GDB Breakpoints Debugger (Real-time halts on worker spike predicates)
+ * - Connectome Git (State Checkpoints S0, S1, S2...)
+ * - Causal Atlas 2.0 (Biological connectivity graph)
+ * - Cross-Engine Verification (FlyWire FAFB 139k vs MaleCNS 166k)
+ * - Mutation Mode & Phase Map (2D Dynamical Bifurcations)
+ * - CQL Terminal (Natural Constraint Query Language)
+ * Synchronized with 3D instanced connectome visualization.
  */
 
 import { AskTheBrainHero } from '../ui/causality/AskTheBrainHero';
@@ -14,6 +22,8 @@ import { BreakpointDebuggerHUD } from '../ui/causality/BreakpointDebuggerHUD';
 import { ConnectomeGitTree } from '../ui/causality/ConnectomeGitTree';
 import { CausalAtlasView } from '../ui/causality/CausalAtlasView';
 import { CqlConsole } from '../ui/causality/CqlConsole';
+import { CrossEngineView } from '../ui/causality/CrossEngineView';
+import { MutationPhaseView } from '../ui/causality/MutationPhaseView';
 import { BreakpointManager } from '../engine/causality/BreakpointManager';
 import { ExperimentGraph } from '../engine/causality/ExperimentGraph';
 import { LabBrain3D } from '../ui/lab/LabBrain3D';
@@ -26,6 +36,8 @@ export type CausalSubTab =
   | 'debugger'
   | 'git'
   | 'atlas'
+  | 'cross'
+  | 'phase'
   | 'cql';
 
 export class CausalLabView {
@@ -59,7 +71,7 @@ export class CausalLabView {
             <span class="causal-logo-icon">⚡</span>
             <div class="causal-logo-text">
               <span class="logo-title">CAUSAL LAB</span>
-              <span class="logo-subtitle">NEURAL CIRCUIT DEBUGGER</span>
+              <span class="logo-subtitle">NEURAL REALITY ENGINE</span>
             </div>
           </div>
 
@@ -78,6 +90,12 @@ export class CausalLabView {
             </button>
             <button class="subtab-btn ${this.currentTab === 'git' ? 'active' : ''}" data-tab="git">
               🌿 CONNECTOME GIT
+            </button>
+            <button class="subtab-btn ${this.currentTab === 'cross' ? 'active' : ''}" data-tab="cross">
+              ⚖️ CROSS-ENGINE
+            </button>
+            <button class="subtab-btn ${this.currentTab === 'phase' ? 'active' : ''}" data-tab="phase">
+              🧬 PHASE MAP
             </button>
             <button class="subtab-btn ${this.currentTab === 'atlas' ? 'active' : ''}" data-tab="atlas">
               🗺️ CAUSAL ATLAS
@@ -213,6 +231,14 @@ export class CausalLabView {
             }
           },
         });
+        break;
+
+      case 'cross':
+        new CrossEngineView(panel);
+        break;
+
+      case 'phase':
+        new MutationPhaseView(panel);
         break;
 
       case 'atlas':

@@ -11,6 +11,7 @@
  */
 
 import { ReceptiveFieldGradient, SimulationTickData, LIVE_ENGINE_METADATA } from '../shared/ConnectomeTypes';
+import { HeadlessExperimentRequest, HeadlessExperimentResult, NeuralSnapshotMetadata } from '../causality/ExperimentTypes';
 
 export interface LiveEngineCallbacks {
   onReady?: (neuronCount: number, edgeCount: number) => void;
@@ -34,6 +35,12 @@ export class LiveEngineAdapter {
   private groupIndices: Uint32Array[] = [];
   private regionTypeArr: Uint8Array | null = null;
   private groupIdArr: Uint16Array | null = null;
+
+  // Pending asynchronous kernel operations
+  private pendingSnapshots: Map<string, (meta: NeuralSnapshotMetadata) => void> = new Map();
+  private pendingRestores: Map<string, (ok: boolean) => void> = new Map();
+  private pendingBatchRuns: Map<string, (res: HeadlessExperimentResult) => void> = new Map();
+  private pendingCompares: Array<(res: any) => void> = [];
 
   // Real-time behavioral motor outputs computed from connectome spikes
   private accumWalkLeft: number = 0;
@@ -357,6 +364,45 @@ export class LiveEngineAdapter {
         }
         break;
 
+      case 'snapshotCreated': {
+        const snapCb = this.pendingSnapshots.get(data.id);
+        if (snapCb) {
+          this.pendingSnapshots.delete(data.id);
+          snapCb({
+            id: data.id,
+            tickCount: data.tickCount,
+            timeMs: data.timeMs,
+            activeNeuronCount: data.activeNeuronCount || 0,
+            cumulativeFiredCount: data.cumulativeFiredCount || 0,
+          });
+        }
+        break;
+      }
+
+      case 'snapshotRestored': {
+        const resCb = this.pendingRestores.get(data.id);
+        if (resCb) {
+          this.pendingRestores.delete(data.id);
+          resCb(data.success);
+        }
+        break;
+      }
+
+      case 'compareResult': {
+        const compCb = this.pendingCompares.shift();
+        if (compCb) compCb(data.diff);
+        break;
+      }
+
+      case 'batchResult': {
+        const batchCb = this.pendingBatchRuns.get(data.runId);
+        if (batchCb) {
+          this.pendingBatchRuns.delete(data.runId);
+          batchCb(data);
+        }
+        break;
+      }
+
       case 'error':
         console.error('sim-worker error:', data.message);
         this.callbacks.onError?.(data.message);
@@ -452,6 +498,51 @@ export class LiveEngineAdapter {
       const gid = this.groupIdArr[i];
       this.groupIndices[gid][counts[gid]++] = i;
     }
+  }
+
+  public createSnapshot(id?: string): Promise<NeuralSnapshotMetadata> {
+    if (!this.worker || !this.isReady) return Promise.reject(new Error('Live engine worker not ready'));
+    const snapId = id || `snap_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+    return new Promise((resolve) => {
+      this.pendingSnapshots.set(snapId, resolve);
+      this.worker!.postMessage({ type: 'snapshot', id: snapId });
+    });
+  }
+
+  public restoreSnapshot(id: string): Promise<boolean> {
+    if (!this.worker || !this.isReady) return Promise.reject(new Error('Live engine worker not ready'));
+    return new Promise((resolve) => {
+      this.pendingRestores.set(id, resolve);
+      this.worker!.postMessage({ type: 'restore', id });
+    });
+  }
+
+  public compareSnapshots(idA: string, idB: string): Promise<any> {
+    if (!this.worker || !this.isReady) return Promise.reject(new Error('Live engine worker not ready'));
+    return new Promise((resolve) => {
+      this.pendingCompares.push(resolve);
+      this.worker!.postMessage({ type: 'compareSnapshots', idA, idB });
+    });
+  }
+
+  public runHeadlessExperiment(req: HeadlessExperimentRequest): Promise<HeadlessExperimentResult> {
+    if (!this.worker || !this.isReady) return Promise.reject(new Error('Live engine worker not ready'));
+    return new Promise((resolve) => {
+      this.pendingBatchRuns.set(req.runId, resolve);
+      this.worker!.postMessage({ type: 'runBatch', config: req });
+    });
+  }
+
+  public getGroupIdForName(name: string): number | undefined {
+    return this.groupNameToId[name];
+  }
+
+  public getGroupNameToIdMap(): Record<string, number> {
+    return { ...this.groupNameToId };
+  }
+
+  public getGroupIdToNameMap(): string[] {
+    return [...this.groupIdToName];
   }
 
   private fetchWithProgress(url: string): Promise<ArrayBuffer> {

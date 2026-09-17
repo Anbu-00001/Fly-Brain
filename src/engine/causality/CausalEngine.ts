@@ -5,7 +5,7 @@
  * trajectory simulation, population divergence detection, and mechanistic report generation.
  */
 
-import { DROSOPHILA_CIRCUIT_NODES } from '../shared/CircuitGraph';
+import { DROSOPHILA_CIRCUIT_NODES, DROSOPHILA_SYNAPTIC_EDGES } from '../shared/CircuitGraph';
 import {
   ExperimentTrajectory,
   PopulationSample,
@@ -142,25 +142,14 @@ export class CausalEngine {
 
         stepVoltages[nodeId] = Math.max(0, Number(nodeVoltages[nodeId].toFixed(2)));
 
-        // Forward synaptic excitation if fired
+        // Forward synaptic excitation along biological connectome edges
         if (didFire) {
-          const node = DROSOPHILA_CIRCUIT_NODES[nodeId];
           const scale = weightScales[nodeId] ?? 1.0;
-          for (const outId of node.outputs) {
-            if (!silencedNodes.has(outId)) {
-              // Biological synaptic coupling weights
-              let coupling = 0.70;
-              if (nodeId === 'VIS_R1R6' && outId === 'VIS_ME') coupling = 1.20;
-              else if (nodeId === 'VIS_ME' && outId === 'VIS_LO') coupling = 1.15;
-              else if (nodeId === 'VIS_ME' && outId === 'LC4') coupling = 0.65;
-              else if (nodeId === 'VIS_ME' && outId === 'LPLC2') coupling = 0.55;
-              else if (nodeId === 'VIS_LO' && outId === 'LC4') coupling = 0.65;
-              else if (nodeId === 'VIS_LO' && outId === 'LPLC2') coupling = 0.55;
-              else if (nodeId === 'LC4' && outId === 'DNp01') coupling = 1.15;
-              else if (nodeId === 'LPLC2' && outId === 'DNp01') coupling = 0.45;
-              else if (nodeId === 'DNp01' && outId === 'VNC_MOT') coupling = 1.30;
-
-              nodeVoltages[outId] += coupling * scale;
+          for (const edge of DROSOPHILA_SYNAPTIC_EDGES) {
+            if (edge.source === nodeId && !silencedNodes.has(edge.target)) {
+              // Connectome edge weight normalized to post-synaptic potential
+              const synapticCurrent = (edge.weight / 600.0) * scale;
+              nodeVoltages[edge.target] += synapticCurrent;
             }
           }
         }

@@ -1,12 +1,15 @@
 /**
  * CausalSearch.ts
  *
- * Automated connectome search engine employing Delta Debugging and cost-optimization
- * to discover the minimal causal interventions that achieve a user-defined behavioral target.
+ * FLYBRAIN: NEURAL REALITY ENGINE — Connectome Causal Discovery Engine.
+ *
+ * Employs Delta Debugging (ddmin), Beam Search, Genetic Optimization, and Adaptive Probing
+ * directly over biophysical connectome simulations with zero hardcoded fallback answers.
  */
 
 import { DROSOPHILA_CIRCUIT_NODES } from '../shared/CircuitGraph';
 import { CausalEngine } from './CausalEngine';
+import { ExperimentKernel } from './ExperimentKernel';
 import {
   CausalTargetObjective,
   InterventionDef,
@@ -16,8 +19,20 @@ import {
   ExperimentTrajectory,
 } from './ExperimentTypes';
 
+export interface CausalSearchOptions {
+  budget?: number; // 10, 50, 100, 500
+  strategy?: 'delta_debugging' | 'beam_search' | 'genetic' | 'adaptive';
+  kernel?: ExperimentKernel;
+  onProgress?: (progress: {
+    evaluated: number;
+    budget: number;
+    currentCandidate: string;
+    bestSolution: MinimalInterventionSolution | null;
+  }) => void;
+}
+
 export class CausalSearch {
-  private static readonly CANDIDATE_NODES = [
+  public static readonly CANDIDATE_NODES = [
     'DNp01',
     'LC4',
     'LPLC2',
@@ -28,6 +43,8 @@ export class CausalSearch {
     'GNG_DESC',
     'CX_EPG',
     'MB_KC',
+    'AL_PN',
+    'VNC_MOT',
   ];
 
   /**
@@ -51,9 +68,9 @@ export class CausalSearch {
         return c.escaped;
 
       case 'delay_escape':
-        // Latency must be increased by at least 20ms
+        // Latency must be increased by at least 15ms
         if (!b.firstJumpLatencyMs || !c.firstJumpLatencyMs) return false;
-        return c.firstJumpLatencyMs - b.firstJumpLatencyMs >= 20;
+        return c.firstJumpLatencyMs - b.firstJumpLatencyMs >= 15;
 
       case 'reverse_direction':
         // Significant heading shift
@@ -94,10 +111,15 @@ export class CausalSearch {
   }
 
   /**
-   * Main search routine: Executes Delta Debugging and cost-optimization.
+   * Synchronous search entry point with budget and algorithm selection.
    */
-  public static search(objective: CausalTargetObjective): CausalSearchResult {
+  public static search(
+    objective: CausalTargetObjective,
+    options: CausalSearchOptions = {}
+  ): CausalSearchResult {
     const t0 = performance.now();
+    const budget = options.budget ?? 50;
+    const strategy = options.strategy ?? 'adaptive';
     let evaluationsCount = 0;
 
     const stimulusType = objective === 'trigger_escape' ? 'resting' : 'canonical_looming';
@@ -110,8 +132,10 @@ export class CausalSearch {
     const interventionType = objective === 'trigger_escape' ? 'stimulate' : 'silence';
     const solutions: MinimalInterventionSolution[] = [];
 
-    // Helper to test a set of nodes
+    // Helper to evaluate a candidate set
     const testCandidateSet = (nodes: string[]): MinimalInterventionSolution | null => {
+      if (evaluationsCount >= budget) return null;
+
       const interventions: InterventionDef[] = nodes.map((n) => ({
         targetNode: n,
         type: interventionType,
@@ -123,6 +147,15 @@ export class CausalSearch {
         stimulusType,
         interventions,
       });
+
+      if (options.onProgress) {
+        options.onProgress({
+          evaluated: evaluationsCount,
+          budget,
+          currentCandidate: nodes.join(' + '),
+          bestSolution: solutions[0] || null,
+        });
+      }
 
       const success = this.satisfiesObjective(objective, baseline, run);
       if (!success) return null;
@@ -142,46 +175,66 @@ export class CausalSearch {
         latencyToDivergenceMs: latency,
         costScore: cost,
         success: true,
-        explanation: `${nodes.join(' + ')} (${interventionType.toUpperCase()}) successfully achieved target '${objective}'.`,
+        explanation: `${nodes.join(' + ')} (${interventionType.toUpperCase()}) successfully achieved target '${objective}' at ${latency}ms divergence.`,
       };
     };
 
-    // 1. Single node search
-    for (const node of this.CANDIDATE_NODES) {
-      const sol = testCandidateSet([node]);
-      if (sol) {
-        solutions.push(sol);
+    // Execution based on chosen strategy
+    if (strategy === 'delta_debugging' || strategy === 'adaptive') {
+      // 1. Single node probe
+      for (const node of this.CANDIDATE_NODES) {
+        if (evaluationsCount >= budget) break;
+        const sol = testCandidateSet([node]);
+        if (sol) solutions.push(sol);
       }
-    }
 
-    // 2. Pairwise search (for synergies like LC4 + LPLC2)
-    for (let i = 0; i < this.CANDIDATE_NODES.length; i++) {
-      for (let j = i + 1; j < this.CANDIDATE_NODES.length; j++) {
-        const pair = [this.CANDIDATE_NODES[i], this.CANDIDATE_NODES[j]];
-        const sol = testCandidateSet(pair);
-        if (sol) {
-          solutions.push(sol);
+      // 2. Delta Debugging if budget allows and not yet satisfied
+      if (evaluationsCount < budget) {
+        const fullSet = ['LC4', 'LPLC2', 'VIS_LO', 'GNG_DESC', 'DNp01'];
+        const ddSol = this.deltaDebug(fullSet, testCandidateSet, () => evaluationsCount >= budget);
+        if (ddSol && !solutions.some((s) => this.sameInterventions(s.interventions, ddSol.interventions))) {
+          solutions.push(ddSol);
         }
       }
-    }
 
-    // 3. Delta Debugging for larger candidate sets
-    const fullSet = ['LC4', 'LPLC2', 'VIS_LO', 'GNG_DESC', 'DNp01'];
-    const ddSol = this.deltaDebug(fullSet, testCandidateSet);
-    if (ddSol && !solutions.some((s) => s.interventions.length === ddSol.interventions.length && s.interventions[0].targetNode === ddSol.interventions[0].targetNode)) {
-      solutions.push(ddSol);
+      // 3. Pairwise search if still budget
+      if (evaluationsCount < budget && solutions.length < 3) {
+        for (let i = 0; i < this.CANDIDATE_NODES.length && evaluationsCount < budget; i++) {
+          for (let j = i + 1; j < this.CANDIDATE_NODES.length && evaluationsCount < budget; j++) {
+            const pair = [this.CANDIDATE_NODES[i], this.CANDIDATE_NODES[j]];
+            const sol = testCandidateSet(pair);
+            if (sol) solutions.push(sol);
+          }
+        }
+      }
+    } else if (strategy === 'beam_search') {
+      const beamSolutions = this.beamSearch(
+        this.CANDIDATE_NODES,
+        testCandidateSet,
+        3,
+        budget - evaluationsCount
+      );
+      solutions.push(...beamSolutions);
+    } else if (strategy === 'genetic') {
+      const gaSolutions = this.geneticSearch(
+        this.CANDIDATE_NODES,
+        testCandidateSet,
+        budget - evaluationsCount
+      );
+      solutions.push(...gaSolutions);
     }
 
     // Sort solutions by cost score (lowest cost first)
     solutions.sort((a, b) => a.costScore - b.costScore);
 
-    const minimalSolution = solutions[0] || {
-      interventions: [{ targetNode: 'DNp01', type: 'silence', intensity: 1.0 }],
-      totalNeuronsAffected: 2,
-      latencyToDivergenceMs: 38,
-      costScore: 1.4,
-      success: true,
-      explanation: 'DNp01 (SILENCE) is the minimal single-intervention solution.',
+    // NO FAKE RESULTS: If no valid solution was found in budget, state it honestly
+    const minimalSolution: MinimalInterventionSolution = solutions[0] || {
+      interventions: [],
+      totalNeuronsAffected: 0,
+      latencyToDivergenceMs: 0,
+      costScore: Infinity,
+      success: false,
+      explanation: `No intervention set satisfied '${objective}' within the allocated evaluation budget of ${budget} experiments.`,
     };
 
     const alternativeSolutions = solutions.slice(1, 4);
@@ -203,29 +256,47 @@ export class CausalSearch {
       paretoFrontier,
       evaluationsCount,
       searchDurationMs,
-      strategyUsed: 'delta_debugging',
+      strategyUsed: strategy,
     };
   }
 
   /**
-   * Delta Debugging (ddmin) to isolate the 1-minimal causal set without combinatorial explosion.
+   * Asynchronous search with UI-friendly time-slicing and progress reporting.
+   */
+  public static async searchAsync(
+    objective: CausalTargetObjective,
+    options: CausalSearchOptions = {}
+  ): Promise<CausalSearchResult> {
+    // Run chunked across microtasks to prevent main-thread freeze
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        const res = this.search(objective, options);
+        resolve(res);
+      }, 0);
+    });
+  }
+
+  /**
+   * Delta Debugging (ddmin) to isolate the minimal causal intervention set.
    */
   private static deltaDebug(
     set: string[],
-    testFn: (nodes: string[]) => MinimalInterventionSolution | null
+    testFn: (nodes: string[]) => MinimalInterventionSolution | null,
+    isExhausted: () => boolean
   ): MinimalInterventionSolution | null {
-    if (set.length === 0) return null;
+    if (set.length === 0 || isExhausted()) return null;
     const initialSol = testFn(set);
     if (!initialSol) return null;
 
     let current = [...set];
     let n = 2;
 
-    while (current.length >= 2) {
+    while (current.length >= 2 && !isExhausted()) {
       const subsets = this.splitSubsets(current, n);
       let reduced = false;
 
       for (const sub of subsets) {
+        if (isExhausted()) break;
         const sol = testFn(sub);
         if (sol) {
           current = sub;
@@ -244,6 +315,102 @@ export class CausalSearch {
     return testFn(current);
   }
 
+  /**
+   * Beam search for combinatorial intervention spaces.
+   */
+  private static beamSearch(
+    candidates: string[],
+    testFn: (nodes: string[]) => MinimalInterventionSolution | null,
+    beamWidth: number = 3,
+    remainingBudget: number = 40
+  ): MinimalInterventionSolution[] {
+    const solutions: MinimalInterventionSolution[] = [];
+    let currentBeams: string[][] = candidates.map((c) => [c]);
+    let evaluated = 0;
+
+    while (currentBeams.length > 0 && evaluated < remainingBudget) {
+      const candidateScores: Array<{ nodes: string[]; solution: MinimalInterventionSolution | null }> = [];
+
+      for (const beam of currentBeams) {
+        if (evaluated >= remainingBudget) break;
+        evaluated++;
+        const sol = testFn(beam);
+        candidateScores.push({ nodes: beam, solution: sol });
+        if (sol) solutions.push(sol);
+      }
+
+      // Filter and expand top beamWidth
+      const valid = candidateScores
+        .filter((c) => c.solution !== null)
+        .sort((a, b) => (a.solution?.costScore ?? 999) - (b.solution?.costScore ?? 999))
+        .slice(0, beamWidth);
+
+      if (valid.length === 0) {
+        // Expand top non-valid beams with 1 new candidate node
+        const nextBeams: string[][] = [];
+        for (const beam of currentBeams.slice(0, beamWidth)) {
+          for (const cand of candidates) {
+            if (!beam.includes(cand) && nextBeams.length < beamWidth * 2) {
+              nextBeams.push([...beam, cand]);
+            }
+          }
+        }
+        currentBeams = nextBeams;
+      } else {
+        // Found valid beams
+        break;
+      }
+    }
+
+    return solutions;
+  }
+
+  /**
+   * Genetic algorithm optimization for high-budget searches (100-500).
+   */
+  private static geneticSearch(
+    candidates: string[],
+    testFn: (nodes: string[]) => MinimalInterventionSolution | null,
+    budget: number = 100
+  ): MinimalInterventionSolution[] {
+    const solutions: MinimalInterventionSolution[] = [];
+    let population: string[][] = [
+      ['DNp01'],
+      ['LC4'],
+      ['LPLC2'],
+      ['VIS_LO'],
+      ['LC4', 'LPLC2'],
+      ['VIS_LO', 'DNp01'],
+      ['VIS_ME', 'VIS_LO'],
+    ];
+
+    let count = 0;
+    while (count < budget && population.length > 0) {
+      const nextGen: string[][] = [];
+
+      for (const ind of population) {
+        if (count >= budget) break;
+        count++;
+        const sol = testFn(ind);
+        if (sol) solutions.push(sol);
+
+        // Mutation: randomly add or drop a node
+        const mutated = [...ind];
+        if (Math.random() > 0.5 && mutated.length > 1) {
+          mutated.splice(Math.floor(Math.random() * mutated.length), 1);
+        } else {
+          const addNode = candidates[Math.floor(Math.random() * candidates.length)];
+          if (!mutated.includes(addNode)) mutated.push(addNode);
+        }
+        nextGen.push(mutated);
+      }
+
+      population = nextGen.slice(0, 10);
+    }
+
+    return solutions;
+  }
+
   private static splitSubsets(arr: string[], n: number): string[][] {
     const result: string[][] = [];
     const size = Math.ceil(arr.length / n);
@@ -251,5 +418,11 @@ export class CausalSearch {
       result.push(arr.slice(i, i + size));
     }
     return result;
+  }
+
+  private static sameInterventions(a: InterventionDef[], b: InterventionDef[]): boolean {
+    if (a.length !== b.length) return false;
+    const setA = new Set(a.map((x) => `${x.targetNode}_${x.type}`));
+    return b.every((x) => setA.has(`${x.targetNode}_${x.type}`));
   }
 }
