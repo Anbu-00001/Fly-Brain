@@ -13,6 +13,7 @@
  */
 
 import * as THREE from 'three';
+import { releaseRenderer, disposeSceneGraph } from './render/Lifecycle';
 import { SimulationTickData } from '../engine/shared/ConnectomeTypes';
 
 interface NeuropilCluster {
@@ -404,10 +405,9 @@ export class BrainView3D {
 
   public dispose(): void {
     this.stop();
-    if (this.renderer) {
-      this.renderer.dispose();
-      this.renderer = null;
-    }
     this.pointsGeo.dispose();
+    if (this.scene) disposeSceneGraph(this.scene);
+    releaseRenderer(this.renderer);
+    this.renderer = null;
   }
 }

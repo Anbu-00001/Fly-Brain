@@ -191,6 +191,12 @@ export class NeuroRenderer2D {
     }
   }
 
+  public dispose(): void {
+    this.stop();
+    const el = this.getElement();
+    if (el.parentNode) el.parentNode.removeChild(el);
+  }
+
   private renderLoop = (): void => {
     if (!this.isRunning) return;
 

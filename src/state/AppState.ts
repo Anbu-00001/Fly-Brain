@@ -26,7 +26,7 @@ export class AppState {
   // Live telemetry metrics
   public totalActiveNeurons: number = 0;
   public totalNeuronsOnScreen: number = LIVE_ENGINE_METADATA.totalNeurons;
-  public reactionLatencyMs: number | null = null;
+  public responseWallClockMs: number | null = null;
   public threatStartTimeMs: number | null = null;
   public escapeStartTimeMs: number | null = null;
   public currentSpikeRateHz: number = 0;
@@ -86,7 +86,7 @@ export class AppState {
 
   public resetEncounter(): void {
     this.encounterStatus = 'idle';
-    this.reactionLatencyMs = null;
+    this.responseWallClockMs = null;
     this.threatStartTimeMs = null;
     this.escapeStartTimeMs = null;
     this.survivalTimeS = 0;

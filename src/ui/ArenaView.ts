@@ -21,6 +21,15 @@ export interface ArenaViewCallbacks {
 }
 
 export class ArenaView {
+  /**
+   * All DOM listeners are registered with this signal so dispose() can remove
+   * them in one call. The previous build attached anonymous arrow functions to
+   * `window` (resize, mousemove, mouseup) and never removed them: each new view
+   * instance added another permanent handler that retained the whole scene graph,
+   * so navigating back and forth both leaked GPU memory and multiplied the work
+   * done on every mouse move.
+   */
+  private listenerAbort = new AbortController();
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   private container: HTMLElement;
@@ -63,7 +72,7 @@ export class ArenaView {
   private startTimeMs: number = 0;
   private threatOnsetMs: number | null = null;
   private escapeOnsetMs: number | null = null;
-  private firstJumpLatencyMs: number | null = null;
+  private responseWallClockMs: number | null = null;
 
   // Countdown state
   private countdownValue: number | null = null;
@@ -97,7 +106,7 @@ export class ArenaView {
   }
 
   private setupEvents(): void {
-    window.addEventListener('resize', () => this.resize());
+    window.addEventListener('resize', () => this.resize(), { signal: this.listenerAbort.signal });
 
     // Mouse movement drives the predator
     this.canvas.addEventListener('mousemove', (e) => {
@@ -121,13 +130,13 @@ export class ArenaView {
         this.threatOnsetMs = performance.now();
         this.callbacks.onThreatStarted?.();
       }
-    });
+    }, { signal: this.listenerAbort.signal });
 
     this.canvas.addEventListener('mouseleave', () => {
       if (!this.isReplayMode) {
         this.predator.active = false;
       }
-    });
+    }, { signal: this.listenerAbort.signal });
   }
 
   public resize(): void {
@@ -156,7 +165,7 @@ export class ArenaView {
 
     this.threatOnsetMs = null;
     this.escapeOnsetMs = null;
-    this.firstJumpLatencyMs = null;
+    this.responseWallClockMs = null;
     this.particles = [];
     this.loomingCalc.reset();
   }
@@ -186,6 +195,17 @@ export class ArenaView {
       this.animFrameId = null;
     }
     this.engine.stop();
+  }
+
+  /**
+   * Releases everything this view owns. main.ts must call this on screen change:
+   * the previous build only ever called stop(), so the canvas and its listeners
+   * outlived the screen and accumulated across navigations.
+   */
+  public dispose(): void {
+    this.stop();
+    this.listenerAbort.abort();
+    if (this.canvas.parentNode) this.canvas.parentNode.removeChild(this.canvas);
   }
 
   public setCountdown(val: number | null): void {
@@ -243,17 +263,19 @@ export class ArenaView {
     // 2. Inject into connectome
     this.engine.injectLoomingStimulus(gradient);
 
-    // 3. Read motor accumulators
-    const acc = this.engine.getAccumulators();
+    // 3. Evaluate the escape decision.
+    //    The model is LPLC2-style angular-size tuning plus LC4-style expansion-
+    //    velocity tuning (Ache et al. 2019), gated on measured lobula activity.
+    //    See engine/shared/EscapeModel.ts for what this does and does not claim.
+    const decision = this.engine.evaluateEscape(gradient.angularLoomRad, gradient.expansionRate);
 
-    // Check escape trigger
-    if (acc.escapeTriggered && !this.fly.isFlying) {
+    if (decision.triggered && !this.fly.isFlying) {
       this.fly.isFlying = true;
       this.fly.flightAltitude = 1.0;
       this.escapeOnsetMs = now;
 
-      if (this.threatOnsetMs !== null && this.firstJumpLatencyMs === null) {
-        this.firstJumpLatencyMs = Math.round(this.escapeOnsetMs - this.threatOnsetMs);
+      if (this.threatOnsetMs !== null && this.responseWallClockMs === null) {
+        this.responseWallClockMs = Math.round(this.escapeOnsetMs - this.threatOnsetMs);
       }
 
       // Explosive takeoff velocity away from predator
@@ -284,10 +306,18 @@ export class ArenaView {
         this.fly.vy = -this.fly.vy * 0.8;
       }
     } else {
-      // Ground walking & exploratory turning driven by connectome
-      const turnBias = (acc.walkRight - acc.walkLeft) * 0.08;
-      this.fly.heading = normalizeAngle(this.fly.heading + turnBias + this.rng.range(-0.02, 0.02));
-      const walkSpeed = Math.min(2.5, (acc.walkLeft + acc.walkRight) * 0.15 + 0.3);
+      // Ground walking.
+      //
+      // Heading wander is AUTHORED: it is seeded RNG, not neural. The previous
+      // build wrote `turnBias = (acc.walkRight - acc.walkLeft) * 0.08` and called
+      // it "driven by connectome", but those two accumulators were computed with
+      // identical formulas, so turnBias was identically zero and the wander was
+      // always just this RNG. We keep the RNG and drop the false attribution.
+      this.fly.heading = normalizeAngle(this.fly.heading + this.rng.range(-0.02, 0.02));
+
+      // Walk speed IS neural: normalised descending-trunk (GNG_DESC) activity.
+      const descAct = this.engine.getDescendingActivity();
+      const walkSpeed = Math.min(2.5, descAct * 18.0 + 0.3);
       this.fly.x += Math.cos(this.fly.heading) * walkSpeed;
       this.fly.y += Math.sin(this.fly.heading) * walkSpeed;
       this.fly.wingPhase += 0.05;
@@ -309,11 +339,11 @@ export class ArenaView {
     if (this.predator.active && distToPred <= this.predator.radius && !this.fly.isFlying) {
       // Fly is caught!
       this.stop();
-      this.callbacks.onEncounterEnd?.('caught', tSec, this.firstJumpLatencyMs);
+      this.callbacks.onEncounterEnd?.('caught', tSec, this.responseWallClockMs);
     } else if (this.fly.isFlying && tSec > 6.0 && distToPred > 350) {
       // Successfully escaped threat
       this.stop();
-      this.callbacks.onEncounterEnd?.('escaped', tSec, this.firstJumpLatencyMs);
+      this.callbacks.onEncounterEnd?.('escaped', tSec, this.responseWallClockMs);
     }
 
     // 6. Update particles

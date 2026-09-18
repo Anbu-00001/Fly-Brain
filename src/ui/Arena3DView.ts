@@ -12,6 +12,7 @@
  */
 
 import * as THREE from 'three';
+import { releaseRenderer, disposeSceneGraph } from './render/Lifecycle';
 import { LiveEngineAdapter } from '../engine/live/LiveEngineAdapter';
 import { LoomingCalculator } from '../engine/live/LoomingCalculator';
 import { ReceptiveFieldGradient } from '../engine/shared/ConnectomeTypes';
@@ -29,6 +30,15 @@ export interface Arena3DViewCallbacks {
 }
 
 export class Arena3DView {
+  /**
+   * All DOM listeners are registered with this signal so dispose() can remove
+   * them in one call. The previous build attached anonymous arrow functions to
+   * `window` (resize, mousemove, mouseup) and never removed them: each new view
+   * instance added another permanent handler that retained the whole scene graph,
+   * so navigating back and forth both leaked GPU memory and multiplied the work
+   * done on every mouse move.
+   */
+  private listenerAbort = new AbortController();
   private container: HTMLElement;
   private canvas3D: HTMLCanvasElement;
   private renderer: THREE.WebGLRenderer | null = null;
@@ -112,7 +122,7 @@ export class Arena3DView {
   private startTimeMs: number = 0;
   private threatOnsetMs: number | null = null;
   private escapeOnsetMs: number | null = null;
-  private firstJumpLatencyMs: number | null = null;
+  private responseWallClockMs: number | null = null;
   private countdownValue: number | null = null;
 
   // Pre-allocated math objects to avoid garbage collection & thermal throttling
@@ -423,7 +433,7 @@ export class Arena3DView {
   }
 
   private setupEvents(): void {
-    window.addEventListener('resize', () => this.resize());
+    window.addEventListener('resize', () => this.resize(), { signal: this.listenerAbort.signal });
 
     // Mouse Tracking in 3D: Raycast against ground plane
     this.container.addEventListener('mousemove', (e) => {
@@ -451,13 +461,13 @@ export class Arena3DView {
           this.callbacks.onThreatStarted?.();
         }
       }
-    });
+    }, { signal: this.listenerAbort.signal });
 
     this.container.addEventListener('mouseleave', () => {
       if (!this.isReplayMode) {
         this.predator.active = false;
       }
-    });
+    }, { signal: this.listenerAbort.signal });
 
     // Orbit Camera Drag Controls
     this.container.addEventListener('mousedown', (e) => {
@@ -466,7 +476,7 @@ export class Arena3DView {
         this.orbitControls.startX = e.clientX;
         this.orbitControls.startY = e.clientY;
       }
-    });
+    }, { signal: this.listenerAbort.signal });
 
     window.addEventListener('mousemove', (e) => {
       if (!this.orbitControls.isDown) return;
@@ -476,15 +486,15 @@ export class Arena3DView {
       this.orbitControls.phi = clamp(this.orbitControls.phi - dy * 0.008, 0.15, Math.PI / 2 - 0.05);
       this.orbitControls.startX = e.clientX;
       this.orbitControls.startY = e.clientY;
-    });
+    }, { signal: this.listenerAbort.signal });
 
     window.addEventListener('mouseup', () => {
       this.orbitControls.isDown = false;
-    });
+    }, { signal: this.listenerAbort.signal });
 
     this.container.addEventListener('wheel', (e) => {
       this.orbitControls.radius = clamp(this.orbitControls.radius + e.deltaY * 0.08, 40, 160);
-    });
+    }, { signal: this.listenerAbort.signal });
   }
 
   public resize(): void {
@@ -531,7 +541,7 @@ export class Arena3DView {
 
     this.threatOnsetMs = null;
     this.escapeOnsetMs = null;
-    this.firstJumpLatencyMs = null;
+    this.responseWallClockMs = null;
     this.loomingCalc.reset();
   }
 
@@ -645,17 +655,18 @@ export class Arena3DView {
     // 2. Inject into connectome
     this.engine.injectLoomingStimulus(gradient);
 
-    // 3. Read connectome motor accumulators
-    const acc = this.engine.getAccumulators();
+    // 3. Evaluate the escape decision (see engine/shared/EscapeModel.ts).
+    //    This is a MODELLED readout, not a measurement of DNp01: ENGINE-LIVE's
+    //    dataset does not resolve the giant fiber as an addressable population.
+    const decision = this.engine.evaluateEscape(gradient.angularLoomRad, gradient.expansionRate);
 
-    // Check Giant Fiber Escape trigger
-    if (acc.escapeTriggered && !this.fly.isFlying) {
+    if (decision.triggered && !this.fly.isFlying) {
       this.fly.isFlying = true;
       this.fly.flightAltitude = 12.0;
       this.escapeOnsetMs = now;
 
-      if (this.threatOnsetMs !== null && this.firstJumpLatencyMs === null) {
-        this.firstJumpLatencyMs = Math.round(this.escapeOnsetMs - this.threatOnsetMs);
+      if (this.threatOnsetMs !== null && this.responseWallClockMs === null) {
+        this.responseWallClockMs = Math.round(this.escapeOnsetMs - this.threatOnsetMs);
       }
 
       // Takeoff trajectory away from threat
@@ -690,9 +701,10 @@ export class Arena3DView {
         this.fly.vz = -this.fly.vz * 0.7;
       }
     } else {
-      // Ground walking & exploratory foraging toward sucrose
-      const turnBias = (acc.walkRight - acc.walkLeft) * 0.06;
-      this.fly.heading = normalizeAngle(this.fly.heading + turnBias + this.rng.range(-0.02, 0.02));
+      // Ground walking & exploratory foraging toward sucrose.
+      // Heading wander is AUTHORED (seeded RNG), not neural — see ArenaView for
+      // why the previous connectome-derived turn bias was identically zero.
+      this.fly.heading = normalizeAngle(this.fly.heading + this.rng.range(-0.02, 0.02));
 
       // Attraction vector to sucrose node
       const toSugarX = this.sucroseNode.x - this.fly.x;
@@ -700,7 +712,8 @@ export class Arena3DView {
       const sugarDist = Math.hypot(toSugarX, toSugarZ);
       const sugarAngle = Math.atan2(toSugarX, toSugarZ);
 
-      let walkSpeed = Math.min(0.9, (acc.walkLeft + acc.walkRight) * 0.12 + 0.18);
+      // Walk speed IS neural: normalised descending-trunk (GNG_DESC) activity.
+      let walkSpeed = Math.min(0.9, this.engine.getDescendingActivity() * 14.0 + 0.18);
       if (sugarDist > 8 && !this.predator.active) {
         // Gently steer toward sucrose when calm
         const diff = normalizeAngle(sugarAngle - this.fly.heading);
@@ -745,7 +758,11 @@ export class Arena3DView {
     this.eyeRightMat.emissiveIntensity = rightGlow;
 
     // Neural halo pulse
-    this.neuralHaloMat.opacity = 0.15 + (acc.startle + acc.flight) * 1.2;
+    // Halo brightness tracks measured lobula activity plus the modelled escape
+    // drive, so what glows corresponds to something the engine actually reported.
+    const esc = this.engine.getEscapeState();
+    this.neuralHaloMat.opacity =
+      0.15 + Math.min(0.85, esc.lobulaActivity * 6.0 + (esc.decision?.drive ?? 0) * 0.5);
 
     // 6. Update 3D Predator & Looming Cone
     this.predatorGroup.position.set(this.predator.x, this.predator.y, this.predator.z);
@@ -777,10 +794,10 @@ export class Arena3DView {
     const distToPred = euclideanDistance(this.fly.x, this.fly.z, this.predator.x, this.predator.z);
     if (this.predator.active && distToPred <= this.predator.radius && !this.fly.isFlying) {
       this.stop();
-      this.callbacks.onEncounterEnd?.('caught', tSec, this.firstJumpLatencyMs);
+      this.callbacks.onEncounterEnd?.('caught', tSec, this.responseWallClockMs);
     } else if (this.fly.isFlying && tSec > 6.0 && distToPred > 90) {
       this.stop();
-      this.callbacks.onEncounterEnd?.('escaped', tSec, this.firstJumpLatencyMs);
+      this.callbacks.onEncounterEnd?.('escaped', tSec, this.responseWallClockMs);
     }
 
     // 8. Update Particles
@@ -874,9 +891,11 @@ export class Arena3DView {
 
   public dispose(): void {
     this.stop();
-    if (this.renderer) {
-      this.renderer.dispose();
-      this.renderer = null;
-    }
+    this.listenerAbort.abort();
+    // renderer.dispose() alone leaves the WebGL context allocated; releaseRenderer
+    // forces the context loss and detaches the canvas. See ui/render/Lifecycle.ts.
+    if (this.scene) disposeSceneGraph(this.scene);
+    releaseRenderer(this.renderer);
+    this.renderer = null;
   }
 }

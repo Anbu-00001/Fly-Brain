@@ -73,9 +73,23 @@ export interface SimulationTickData {
     motor: number;
   };
   groupSpikes: Record<string, number>;
-  dtMs: number;
   escapeCommandFired: boolean;
 }
+
+/*
+ * NOTE ON TIME — deliberately absent above.
+ *
+ * SimulationTickData used to carry `dtMs: 100`, commented "10 ticks per second".
+ * That 100 was the worker's TARGET_TICK_RATE, i.e. how often it posts a frame to
+ * the render thread. ENGINE-LIVE's LIF model is dimensionless: threshold 1.0,
+ * leak 0.95 per tick, no dt, no membrane time constant, no conduction delays.
+ * A tick therefore has no millisecond interpretation, and presenting one as a
+ * biological latency was a fabrication. Live timing is reported in TICKS.
+ *
+ * ENGINE-RECORDED is different and genuinely does carry time: it integrates at
+ * dt = 0.02 s, so ReplayLog.summary.firstJumpLatencyMs below IS meaningful — but
+ * only for recorded traces, never for live ones.
+ */
 
 /**
  * Deterministic input log entry for byte-for-byte replay

@@ -226,6 +226,12 @@ export class BrainSurgeryPanel {
     }
   }
 
+  /** Releases the animation frame and detaches the panel. */
+  public dispose(): void {
+    this.stopLoop();
+    if (this.container.parentNode) this.container.parentNode.removeChild(this.container);
+  }
+
   private getActiveTrace(): RecordedTraceData | null {
     if (this.activeCondition === 'intact') return this.intactTrace;
     if (this.activeCondition === 'lc4') return this.lc4Trace;

@@ -1,8 +1,33 @@
 /**
  * main.ts
  *
- * Master orchestrator for FLY ESCAPE.
- * Coordinates views, connectome engine adapters, and state machines.
+ * Application orchestrator: owns the screens, the engines, and — critically —
+ * the teardown.
+ *
+ * WHY THE TEARDOWN IS THE INTERESTING PART
+ * ----------------------------------------
+ * The previous orchestrator changed screens like this:
+ *
+ *     private stopExperiment(): void {
+ *       this.arenaView?.stop();
+ *       this.arenaView3D?.stop();
+ *       ...
+ *     }
+ *     ...
+ *     this.screenMount.innerHTML = '';
+ *     this.arenaView3D = new Arena3DView(...);   // new WebGL context
+ *     this.brainView3D  = new BrainView3D(...);  // another one
+ *
+ * stop() cancelled animation frames but released nothing. Every visit to the
+ * Experiment screen allocated two more WebGL contexts, two more scene graphs and
+ * four more permanent window-level event listeners, none of which were ever
+ * reclaimed. A few navigations exhausted the browser's context budget and pinned
+ * the GPU — which is precisely why this project could not be run for long on a
+ * laptop without it overheating.
+ *
+ * Every screen now owns a DisposalBag. Changing screens empties the bag first and
+ * touches the DOM second. Nothing is constructed until it is shown: the 2D and 3D
+ * arenas are mutually exclusive rather than both built and one hidden.
  */
 
 import { LiveEngineAdapter } from './engine/live/LiveEngineAdapter';
@@ -19,8 +44,9 @@ import { BrainView3D } from './ui/BrainView3D';
 import { ReplayControls } from './ui/ReplayControls';
 import { BrainSurgeryPanel } from './ui/BrainSurgeryPanel';
 import { AboutDrawer } from './ui/AboutDrawer';
-import { ConnectomeLabView } from './app/ConnectomeLabView';
-import { CausalLabView } from './app/CausalLabView';
+import { DisposalBag } from './ui/render/Lifecycle';
+
+type ArenaMode = '2d' | '3d';
 
 class AppOrchestrator {
   private state: AppState;
@@ -32,30 +58,25 @@ class AppOrchestrator {
   private aboutDrawer!: AboutDrawer;
   private screenMount!: HTMLElement;
 
-  // Experiment components
+  /** Everything the current screen owns. Emptied on every screen change. */
+  private screenBag = new DisposalBag();
+
+  // Live references, valid only while the owning screen is mounted.
   private arenaView: ArenaView | null = null;
   private arenaView3D: Arena3DView | null = null;
-  private arenaMode: '3d' | '2d' = '3d';
+  private arenaMode: ArenaMode = '3d';
   private cameraMode3D: CameraMode3D = 'overview';
-
   private gradientInspector: BrainGradientInspector | null = null;
   private brainPanel: BrainPanel | null = null;
   private neuroRenderer2D: NeuroRenderer2D | null = null;
   private brainView3D: BrainView3D | null = null;
-
-  // Connectome Lab ("God Mode")
-  private connectomeLabView: ConnectomeLabView | null = null;
-
-  // Causal Discovery Lab ("Neural Circuit Debugger")
-  private causalLabView: CausalLabView | null = null;
-
-  // Replay & Surgery components
   private replayControls: ReplayControls | null = null;
 
   private replayAnimId: number | null = null;
-  private isReplayPlaying: boolean = false;
-  private replayTime: number = 0;
-  private replaySpeed: number = 1.0;
+  private isReplayPlaying = false;
+  private replayTime = 0;
+  private replaySpeed = 1.0;
+  private countdownTimer: number | null = null;
 
   constructor() {
     this.recorder = new InputRecorder();
@@ -68,11 +89,11 @@ class AppOrchestrator {
 
     this.liveEngine = new LiveEngineAdapter({
       onReady: (neurons, edges) => {
-        console.log(`Live Connectome Ready: ${neurons} neurons, ${edges} edges.`);
+        console.log(`ENGINE-LIVE ready: ${neurons} neurons, ${edges} edges.`);
       },
       onTick: (data) => {
         if (this.state.getScreen() === 'experiment') {
-          this.brainPanel?.updateTick(data, this.liveEngine.getNeuronCount(), this.state.reactionLatencyMs);
+          this.brainPanel?.updateTick(data, this.liveEngine.getNeuronCount(), this.state.responseWallClockMs);
           this.brainView3D?.updateTick(data);
         }
       },
@@ -85,72 +106,76 @@ class AppOrchestrator {
     this.screenMount = document.getElementById('screenMount') as HTMLElement;
     const badgeHolder = document.getElementById('headerBadgeHolder') as HTMLElement;
 
-    // 1. Mount Persistent LIVE/RECORDED badge (§11)
     this.badge = new LiveOrRecordedBadge(badgeHolder);
-
-    // 2. Mount About Drawer (§10)
     this.aboutDrawer = new AboutDrawer(document.body);
-
-    // 3. Bind header navigation buttons
     this.bindNav();
 
-    // 4. Initialize Live Engine in background
     this.liveEngine.init().catch((err) => {
-      console.warn('Live engine background load warning:', err);
+      console.warn('ENGINE-LIVE background load warning:', err);
     });
 
-    // 5. Initial screen: Home
+    // Release the worker thread if the page goes away.
+    window.addEventListener('beforeunload', () => {
+      this.teardownScreen();
+      this.liveEngine.dispose();
+    });
+
     this.renderHomeScreen();
   }
 
   private bindNav(): void {
-    const btnExp = document.getElementById('navExperiment');
-    const btnLab = document.getElementById('navLab');
-    const btnCausal = document.getElementById('navCausal');
-    const btnReplay = document.getElementById('navReplay');
-    const btnSurgery = document.getElementById('navSurgery');
-    const btnAbout = document.getElementById('navAbout');
-
-    btnExp?.addEventListener('click', () => {
-      this.updateNavButtons('navExperiment');
-      this.renderExperimentScreen();
-    });
-
-    btnLab?.addEventListener('click', () => {
-      this.updateNavButtons('navLab');
-      this.renderLabScreen();
-    });
-
-    btnCausal?.addEventListener('click', () => {
-      this.updateNavButtons('navCausal');
-      this.renderCausalLabScreen();
-    });
-
-    btnReplay?.addEventListener('click', () => {
-      this.updateNavButtons('navReplay');
-      this.renderReplayScreen();
-    });
-
-    btnSurgery?.addEventListener('click', () => {
-      this.updateNavButtons('navSurgery');
-      this.renderSurgeryScreen();
-    });
-
-    btnAbout?.addEventListener('click', () => {
-      this.aboutDrawer.toggle();
-    });
+    const nav: Array<[string, () => void]> = [
+      ['navExperiment', () => this.renderExperimentScreen()],
+      ['navReplay', () => this.renderReplayScreen()],
+      ['navSurgery', () => this.renderSurgeryScreen()],
+    ];
+    for (const [id, go] of nav) {
+      document.getElementById(id)?.addEventListener('click', () => {
+        this.updateNavButtons(id);
+        go();
+      });
+    }
+    document.getElementById('navAbout')?.addEventListener('click', () => this.aboutDrawer.toggle());
   }
 
   private updateNavButtons(activeId: string): void {
-    const btns = document.querySelectorAll('.nav-btn');
-    btns.forEach((b) => b.classList.remove('active'));
+    document.querySelectorAll('.nav-btn').forEach((b) => b.classList.remove('active'));
     document.getElementById(activeId)?.classList.add('active');
   }
 
+  /* ---------- lifecycle ---------- */
+
   /**
-   * Home Screen per §9
+   * Releases every resource the current screen owns, THEN clears the DOM.
+   * Order matters: disposing after innerHTML = '' would leave each view holding a
+   * detached canvas whose GPU context is still live.
    */
+  private teardownScreen(): void {
+    this.stopReplayLoop();
+    if (this.countdownTimer !== null) {
+      clearInterval(this.countdownTimer);
+      this.countdownTimer = null;
+    }
+
+    this.screenBag.dispose();
+    this.screenBag = new DisposalBag();
+
+    this.arenaView = null;
+    this.arenaView3D = null;
+    this.gradientInspector = null;
+    this.brainPanel = null;
+    this.neuroRenderer2D = null;
+    this.brainView3D = null;
+    this.replayControls = null;
+
+    this.liveEngine.stop();
+    this.screenMount.innerHTML = '';
+  }
+
+  /* ---------- home ---------- */
+
   private renderHomeScreen(): void {
+    this.teardownScreen();
     this.state.setScreen('home');
     this.screenMount.innerHTML = `
       <div class="home-screen">
@@ -159,193 +184,92 @@ class AppOrchestrator {
           <h1 class="hero-title">FLY ESCAPE</h1>
           <h2 class="hero-subtitle">Can you catch a 166,000-neuron brain?</h2>
           <p class="hero-desc">
-            A simulated fruit fly, driven by a genuine connectome-based neural simulation,
-            reacts to a looming predator steered with your mouse.<br />
-            <strong>Scientific architecture:</strong> The full 166,000-neuron whole-CNS model powers Brain Surgery's recorded comparisons;
-            live encounters run on a 139,000-neuron real-time connectome of the same fly's visual and motor system.
+            A simulated fruit fly, driven by a connectome-based neural simulation,
+            reacts to a looming predator you steer with the mouse.<br />
+            <strong>Two engines:</strong> the 166,700-neuron whole-CNS model (MaleCNS v1.0)
+            powers Brain Surgery's recorded lesion comparisons; live encounters run on a
+            139,255-neuron real-time model of the same fly's visual system (FlyWire FAFB v783).
+            Every figure on screen states which engine produced it.
           </p>
           <div class="home-cta-group">
             <button type="button" class="cyber-action-btn primary-escape-btn" id="btnStartExperiment">
-              [ ◈ START ESCAPE ENCOUNTER ]
-            </button>
-            <button type="button" class="cyber-action-btn secondary-lab-btn" id="btnStartLab">
-              [ ⚡ ENTER CONNECTOME LAB (GOD MODE) ]
-            </button>
-            <button type="button" class="cyber-action-btn tertiary-causal-btn" id="btnStartCausal">
-              [ 🔬 ENTER CAUSAL LAB (CIRCUIT DEBUGGER) ]
+              [ START ESCAPE ENCOUNTER ]
             </button>
           </div>
           <div class="home-footer-note">
-            Zero trained AI · Real EM connectomes (FlyWire FAFB v783 & MaleCNS v1.0) · 100% Static WebAssembly/JS
+            Nothing here is trained. Both engines are fixed biological wiring driven by injected input.
           </div>
         </div>
       </div>
     `;
-
-    const btnStart = document.getElementById('btnStartExperiment');
-    btnStart?.addEventListener('click', () => {
+    document.getElementById('btnStartExperiment')?.addEventListener('click', () => {
       this.updateNavButtons('navExperiment');
       this.renderExperimentScreen(true);
     });
-
-    const btnLab = document.getElementById('btnStartLab');
-    btnLab?.addEventListener('click', () => {
-      this.updateNavButtons('navLab');
-      this.renderLabScreen();
-    });
-
-    const btnCausal = document.getElementById('btnStartCausal');
-    btnCausal?.addEventListener('click', () => {
-      this.updateNavButtons('navCausal');
-      this.renderCausalLabScreen();
-    });
   }
 
-  /**
-   * Connectome Lab Screen ("God Mode")
-   */
-  private renderLabScreen(): void {
-    this.stopExperiment();
-    this.stopReplayLoop();
-    this.state.setScreen('lab');
-    this.screenMount.innerHTML = '';
+  /* ---------- experiment ---------- */
 
-    this.connectomeLabView = new ConnectomeLabView(this.screenMount, this.liveEngine);
-  }
-
-  /**
-   * Causal Discovery Lab Screen ("Neural Circuit Debugger")
-   */
-  private renderCausalLabScreen(): void {
-    this.stopExperiment();
-    this.stopReplayLoop();
-    this.state.setScreen('causality');
-    this.screenMount.innerHTML = '';
-
-    this.causalLabView = new CausalLabView(this.screenMount, this.liveEngine);
-  }
-
-  /**
-   * Experiment Screen: Live Encounter + Receptive Field Inspector + Telemetry
-   */
-  private renderExperimentScreen(withCountdown: boolean = false): void {
-    this.stopReplayLoop();
-    this.stopExperiment();
+  private renderExperimentScreen(withCountdown = false): void {
+    this.teardownScreen();
     this.state.setScreen('experiment');
-    this.screenMount.innerHTML = '';
 
     const wrap = document.createElement('div');
     wrap.className = 'experiment-view';
     this.screenMount.appendChild(wrap);
 
-    // Left Column: Arena Toolbar + Arenas (3D / 2D) + Brain Gradient Inspector
     const leftCol = document.createElement('div');
     leftCol.className = 'arena-column';
     wrap.appendChild(leftCol);
 
-    // Arena Toolbar with Mode and Camera selection
     const toolbar = document.createElement('div');
     toolbar.className = 'arena-toolbar';
     toolbar.innerHTML = `
       <div class="arena-mode-group">
-        <button type="button" class="arena-btn active" id="btnMode3D">◈ 3D CYBER-TERRARIUM</button>
-        <button type="button" class="arena-btn" id="btnMode2D">☵ 2D VECTOR</button>
+        <button type="button" class="arena-btn ${this.arenaMode === '3d' ? 'active' : ''}" id="btnMode3D">3D CHAMBER</button>
+        <button type="button" class="arena-btn ${this.arenaMode === '2d' ? 'active' : ''}" id="btnMode2D">2D VECTOR</button>
       </div>
-      <div class="arena-cam-group" id="arenaCamGroup">
-        <span class="cam-label">CAMERA:</span>
+      <div class="arena-cam-group" id="arenaCamGroup" style="display:${this.arenaMode === '3d' ? 'flex' : 'none'}">
+        <span class="cam-label">CAMERA</span>
         <button type="button" class="cam-btn active" data-cam="overview">OVERVIEW</button>
-        <button type="button" class="cam-btn" data-cam="chase">CHASE CAM</button>
-        <button type="button" class="cam-btn" data-cam="compound_eye">COMPOUND EYE POV</button>
+        <button type="button" class="cam-btn" data-cam="chase">CHASE</button>
+        <button type="button" class="cam-btn" data-cam="compound_eye">COMPOUND EYE</button>
       </div>
     `;
     leftCol.appendChild(toolbar);
 
-    // Arena Holder containing both 3D and 2D canvas elements
     const arenaHolder = document.createElement('div');
-    arenaHolder.style.flex = '1';
-    arenaHolder.style.position = 'relative';
-    arenaHolder.style.minHeight = '0';
-    arenaHolder.style.overflow = 'hidden';
+    arenaHolder.className = 'arena-holder';
     leftCol.appendChild(arenaHolder);
 
-    // 1. Initialize 3D Arena View (Three.js)
-    this.arenaView3D = new Arena3DView(arenaHolder, this.liveEngine, this.recorder, {
-      onLoomUpdate: (gradient) => {
-        const acc = this.liveEngine.getAccumulators();
-        this.gradientInspector?.update(gradient, acc.flight * 3, acc.startle * 3);
-      },
-      onThreatStarted: () => {
-        this.state.threatStartTimeMs = performance.now();
-      },
-      onEncounterEnd: (result, survivalTime, latencyMs) => {
-        this.state.reactionLatencyMs = latencyMs;
-        this.state.survivalTimeS = survivalTime;
-        this.state.setStatus(result);
-      },
+    this.gradientInspector = new BrainGradientInspector(leftCol, {
+      onFlashRegion: (region, intensity) => this.liveEngine.flashBrainRegion(region, intensity),
     });
 
-    // 2. Initialize 2D Tactical Vector Arena (Canvas2D)
-    this.arenaView = new ArenaView(arenaHolder, this.liveEngine, this.recorder, {
-      onLoomUpdate: (gradient) => {
-        const acc = this.liveEngine.getAccumulators();
-        this.gradientInspector?.update(gradient, acc.flight * 3, acc.startle * 3);
-      },
-      onThreatStarted: () => {
-        this.state.threatStartTimeMs = performance.now();
-      },
-      onEncounterEnd: (result, survivalTime, latencyMs) => {
-        this.state.reactionLatencyMs = latencyMs;
-        this.state.survivalTimeS = survivalTime;
-        this.state.setStatus(result);
-      },
+    this.brainPanel = new BrainPanel(wrap, {
+      onToggle3D: (is3D) => this.setBrainView(is3D),
     });
+    const panelEl = this.brainPanel.getElement();
 
-    // Default view is 3D
-    this.arenaView.getElement().style.display = 'none';
-    this.arenaView3D.getElement().style.display = 'block';
+    this.neuroRenderer2D = this.screenBag.add(new NeuroRenderer2D(panelEl));
+    this.neuroRenderer2D.start();
+    this.state.is3DView = false;
 
-    // Bind toolbar buttons
-    const btn3D = toolbar.querySelector('#btnMode3D') as HTMLButtonElement;
-    const btn2D = toolbar.querySelector('#btnMode2D') as HTMLButtonElement;
-    const camGroup = toolbar.querySelector('#arenaCamGroup') as HTMLElement;
-    const camBtns = toolbar.querySelectorAll('.cam-btn');
+    // Only the selected arena is constructed. Building both and hiding one was
+    // paying for two renderers to show one.
+    this.mountArena(arenaHolder, this.arenaMode);
 
-    btn3D.addEventListener('click', () => {
+    toolbar.querySelector('#btnMode3D')?.addEventListener('click', () => {
       if (this.arenaMode === '3d') return;
-      this.arenaMode = '3d';
-      btn3D.classList.add('active');
-      btn2D.classList.remove('active');
-      camGroup.style.display = 'flex';
-
-      this.arenaView?.stop();
-      if (this.arenaView) this.arenaView.getElement().style.display = 'none';
-      if (this.arenaView3D) {
-        this.arenaView3D.getElement().style.display = 'block';
-        this.arenaView3D.setCameraMode(this.cameraMode3D);
-        this.arenaView3D.resize();
-        this.arenaView3D.startEncounter(Date.now());
-      }
+      this.switchArenaMode(arenaHolder, '3d', toolbar);
     });
-
-    btn2D.addEventListener('click', () => {
+    toolbar.querySelector('#btnMode2D')?.addEventListener('click', () => {
       if (this.arenaMode === '2d') return;
-      this.arenaMode = '2d';
-      btn2D.classList.add('active');
-      btn3D.classList.remove('active');
-      camGroup.style.display = 'none';
-
-      this.arenaView3D?.stop();
-      if (this.arenaView3D) this.arenaView3D.getElement().style.display = 'none';
-      if (this.arenaView) {
-        this.arenaView.getElement().style.display = 'block';
-        this.arenaView.resize();
-        this.arenaView.startEncounter(Date.now());
-      }
+      this.switchArenaMode(arenaHolder, '2d', toolbar);
     });
-
-    camBtns.forEach((btn) => {
+    toolbar.querySelectorAll('.cam-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
-        camBtns.forEach((b) => b.classList.remove('active'));
+        toolbar.querySelectorAll('.cam-btn').forEach((b) => b.classList.remove('active'));
         btn.classList.add('active');
         const mode = btn.getAttribute('data-cam') as CameraMode3D;
         if (mode && this.arenaView3D) {
@@ -355,59 +279,80 @@ class AppOrchestrator {
       });
     });
 
-    // Receptive Field & Brain Gradient Inspector (User Requirement)
-    this.gradientInspector = new BrainGradientInspector(leftCol, {
-      onFlashRegion: (region, intensity) => {
-        this.liveEngine.flashBrainRegion(region, intensity);
+    this.liveEngine.reset();
+    this.liveEngine.start();
+
+    if (withCountdown) this.runCountdown(() => this.startActiveArena());
+    else this.startActiveArena();
+  }
+
+  /** Builds exactly one arena and registers it for disposal. */
+  private mountArena(host: HTMLElement, mode: ArenaMode): void {
+    const cb = {
+      onLoomUpdate: (gradient: any) => {
+        const esc = this.liveEngine.getEscapeState();
+        this.gradientInspector?.update(gradient, esc.decision?.drive ?? 0, esc.lobulaActivity);
       },
-    });
-
-    // Right Column: Brain Telemetry Panel
-    this.brainPanel = new BrainPanel(wrap, {
-      onToggle3D: (is3D) => {
-        this.state.is3DView = is3D;
-        if (this.brainView3D && this.neuroRenderer2D) {
-          const v3d = this.brainView3D.getElement();
-          const v2d = this.neuroRenderer2D.getElement();
-          if (is3D) {
-            v2d.style.display = 'none';
-            v3d.style.display = 'block';
-            this.brainView3D.resize();
-            this.brainView3D.start();
-            this.neuroRenderer2D.stop();
-          } else {
-            v3d.style.display = 'none';
-            v2d.style.display = 'block';
-            this.neuroRenderer2D.resize();
-            this.neuroRenderer2D.start();
-            this.brainView3D.stop();
-          }
-        }
+      onThreatStarted: () => {
+        this.state.threatStartTimeMs = performance.now();
       },
-    });
+      onEncounterEnd: (result: 'escaped' | 'caught', survivalTime: number, ms: number | null) => {
+        this.state.responseWallClockMs = ms;
+        this.state.survivalTimeS = survivalTime;
+        this.state.setStatus(result);
+      },
+    };
 
-    // Mount 2D & 3D Brain View components into panel
-    const panelEl = this.brainPanel.getElement();
-    this.neuroRenderer2D = new NeuroRenderer2D(panelEl);
-    this.brainView3D = new BrainView3D(panelEl);
-    this.brainView3D.getElement().style.display = 'none'; // default is 2D
-    this.neuroRenderer2D.start();
-
-    // Start countdown if triggered from start
-    if (withCountdown) {
-      this.runCountdown(() => {
-        if (this.arenaMode === '3d') {
-          this.arenaView3D?.startEncounter(Date.now());
-        } else {
-          this.arenaView?.startEncounter(Date.now());
-        }
-      });
+    if (mode === '3d') {
+      this.arenaView3D = this.screenBag.add(new Arena3DView(host, this.liveEngine, this.recorder, cb));
+      this.arenaView3D.setCameraMode(this.cameraMode3D);
+      this.arenaView3D.resize();
     } else {
-      if (this.arenaMode === '3d') {
-        this.arenaView3D.startEncounter(Date.now());
-      } else {
-        this.arenaView.startEncounter(Date.now());
-      }
+      this.arenaView = this.screenBag.add(new ArenaView(host, this.liveEngine, this.recorder, cb));
+      this.arenaView.resize();
+    }
+  }
+
+  private switchArenaMode(host: HTMLElement, mode: ArenaMode, toolbar: HTMLElement): void {
+    // Dispose the outgoing arena rather than hiding it.
+    this.arenaView3D?.dispose();
+    this.arenaView?.dispose();
+    this.arenaView3D = null;
+    this.arenaView = null;
+
+    this.arenaMode = mode;
+    toolbar.querySelector('#btnMode3D')?.classList.toggle('active', mode === '3d');
+    toolbar.querySelector('#btnMode2D')?.classList.toggle('active', mode === '2d');
+    const camGroup = toolbar.querySelector('#arenaCamGroup') as HTMLElement | null;
+    if (camGroup) camGroup.style.display = mode === '3d' ? 'flex' : 'none';
+
+    this.mountArena(host, mode);
+    this.startActiveArena();
+  }
+
+  private startActiveArena(): void {
+    if (this.arenaMode === '3d') this.arenaView3D?.startEncounter(Date.now());
+    else this.arenaView?.startEncounter(Date.now());
+  }
+
+  /** The brain panel's 2D/3D toggle, with the inactive renderer disposed. */
+  private setBrainView(is3D: boolean): void {
+    if (!this.brainPanel) return;
+    this.state.is3DView = is3D;
+    const panelEl = this.brainPanel.getElement();
+
+    if (is3D) {
+      this.neuroRenderer2D?.dispose();
+      this.neuroRenderer2D = null;
+      this.brainView3D = this.screenBag.add(new BrainView3D(panelEl));
+      this.brainView3D.resize();
+      this.brainView3D.start();
+    } else {
+      this.brainView3D?.dispose();
+      this.brainView3D = null;
+      this.neuroRenderer2D = this.screenBag.add(new NeuroRenderer2D(panelEl));
+      this.neuroRenderer2D.resize();
+      this.neuroRenderer2D.start();
     }
   }
 
@@ -416,7 +361,7 @@ class AppOrchestrator {
     this.arenaView3D?.setCountdown(count);
     this.arenaView?.setCountdown(count);
 
-    const interval = setInterval(() => {
+    this.countdownTimer = window.setInterval(() => {
       count--;
       if (count > 0) {
         this.arenaView3D?.setCountdown(count);
@@ -425,7 +370,8 @@ class AppOrchestrator {
         this.arenaView3D?.setCountdown(0);
         this.arenaView?.setCountdown(0);
       } else {
-        clearInterval(interval);
+        if (this.countdownTimer !== null) clearInterval(this.countdownTimer);
+        this.countdownTimer = null;
         this.arenaView3D?.setCountdown(null);
         this.arenaView?.setCountdown(null);
         onComplete();
@@ -433,107 +379,31 @@ class AppOrchestrator {
     }, 700);
   }
 
-  /**
-   * Replay Screen per §13: Deterministic Input Log & Canonical Trace Replay
-   */
+  /* ---------- replay ---------- */
+
   private async renderReplayScreen(): Promise<void> {
-    this.stopExperiment();
-    this.stopReplayLoop();
+    this.teardownScreen();
     this.state.setScreen('replay');
-    this.screenMount.innerHTML = '';
 
     const wrap = document.createElement('div');
-    wrap.className = 'experiment-view';
-    wrap.style.display = 'flex';
-    wrap.style.flexDirection = 'column';
+    wrap.className = 'experiment-view replay-view';
     this.screenMount.appendChild(wrap);
 
-    // Toolbar for replay view
-    const toolbar = document.createElement('div');
-    toolbar.className = 'arena-toolbar';
-    toolbar.innerHTML = `
-      <div class="arena-mode-group">
-        <button type="button" class="arena-btn active" id="btnReplayMode3D">◈ 3D CYBER-TERRARIUM</button>
-        <button type="button" class="arena-btn" id="btnReplayMode2D">☵ 2D VECTOR</button>
-      </div>
-      <div class="arena-cam-group" id="replayCamGroup">
-        <span class="cam-label">CAMERA:</span>
-        <button type="button" class="cam-btn active" data-cam="overview">OVERVIEW</button>
-        <button type="button" class="cam-btn" data-cam="chase">CHASE CAM</button>
-        <button type="button" class="cam-btn" data-cam="compound_eye">COMPOUND EYE POV</button>
-      </div>
-    `;
-    wrap.appendChild(toolbar);
-
     const arenaHolder = document.createElement('div');
-    arenaHolder.style.flex = '1';
-    arenaHolder.style.position = 'relative';
-    arenaHolder.style.minHeight = '0';
-    arenaHolder.style.overflow = 'hidden';
+    arenaHolder.className = 'arena-holder';
     wrap.appendChild(arenaHolder);
 
-    // Mount 3D and 2D Arenas in Replay mode
-    this.arenaView3D = new Arena3DView(arenaHolder, this.liveEngine, this.recorder);
+    // Replay always uses the 3D chamber; a second hidden 2D arena bought nothing.
+    this.arenaView3D = this.screenBag.add(
+      new Arena3DView(arenaHolder, this.liveEngine, this.recorder)
+    );
     this.arenaView3D.enableReplayMode(true);
     this.arenaView3D.resetFly(42);
+    this.arenaView3D.setCameraMode(this.cameraMode3D);
+    this.arenaView3D.resize();
 
-    this.arenaView = new ArenaView(arenaHolder, this.liveEngine, this.recorder);
-    this.arenaView.enableReplayMode(true);
-    this.arenaView.resetFly(42);
-
-    // Default replay is 3D
-    this.arenaMode = '3d';
-    this.arenaView.getElement().style.display = 'none';
-    this.arenaView3D.getElement().style.display = 'block';
-
-    const btn3D = toolbar.querySelector('#btnReplayMode3D') as HTMLButtonElement;
-    const btn2D = toolbar.querySelector('#btnReplayMode2D') as HTMLButtonElement;
-    const camGroup = toolbar.querySelector('#replayCamGroup') as HTMLElement;
-    const camBtns = toolbar.querySelectorAll('.cam-btn');
-
-    btn3D.addEventListener('click', () => {
-      this.arenaMode = '3d';
-      btn3D.classList.add('active');
-      btn2D.classList.remove('active');
-      camGroup.style.display = 'flex';
-      if (this.arenaView) this.arenaView.getElement().style.display = 'none';
-      if (this.arenaView3D) {
-        this.arenaView3D.getElement().style.display = 'block';
-        this.arenaView3D.resize();
-        this.syncReplayFrame();
-      }
-    });
-
-    btn2D.addEventListener('click', () => {
-      this.arenaMode = '2d';
-      btn2D.classList.add('active');
-      btn3D.classList.remove('active');
-      camGroup.style.display = 'none';
-      if (this.arenaView3D) this.arenaView3D.getElement().style.display = 'none';
-      if (this.arenaView) {
-        this.arenaView.getElement().style.display = 'block';
-        this.arenaView.resize();
-        this.syncReplayFrame();
-      }
-    });
-
-    camBtns.forEach((btn) => {
-      btn.addEventListener('click', () => {
-        camBtns.forEach((b) => b.classList.remove('active'));
-        btn.classList.add('active');
-        const mode = btn.getAttribute('data-cam') as CameraMode3D;
-        if (mode && this.arenaView3D) {
-          this.cameraMode3D = mode;
-          this.arenaView3D.setCameraMode(mode);
-          this.syncReplayFrame();
-        }
-      });
-    });
-
-    // Load canonical precomputed trace (MaleCNS v1.0, 166,700 neurons)
     const trace = await this.traceConsumer.loadTrace('traces/canonical_demo.json');
 
-    // Mount Replay Controls
     this.replayControls = new ReplayControls(wrap, {
       onPlay: () => this.startReplayLoop(),
       onPause: () => this.stopReplayLoop(),
@@ -561,7 +431,7 @@ class AppOrchestrator {
         URL.revokeObjectURL(url);
       },
       onImport: (log) => {
-        alert(`Loaded replay log: ${log.samples.length} samples (${log.dataset})`);
+        console.log(`Loaded replay log: ${log.samples.length} samples (${log.dataset})`);
       },
     });
 
@@ -579,10 +449,9 @@ class AppOrchestrator {
       if (!this.isReplayPlaying) return;
       const dt = ((ts - lastTs) / 1000) * this.replaySpeed;
       lastTs = ts;
-
       this.replayTime += dt;
-      const dur = this.traceConsumer.getDurationS();
 
+      const dur = this.traceConsumer.getDurationS();
       if (this.replayTime >= dur) {
         this.replayTime = dur;
         this.isReplayPlaying = false;
@@ -591,12 +460,8 @@ class AppOrchestrator {
 
       this.replayControls?.setTime(this.replayTime);
       this.syncReplayFrame();
-
-      if (this.isReplayPlaying) {
-        this.replayAnimId = requestAnimationFrame(loop);
-      }
+      if (this.isReplayPlaying) this.replayAnimId = requestAnimationFrame(loop);
     };
-
     this.replayAnimId = requestAnimationFrame(loop);
   }
 
@@ -610,59 +475,32 @@ class AppOrchestrator {
 
   private syncReplayFrame(): void {
     const sample = this.traceConsumer.getSampleAtTime(this.replayTime);
-    if (!sample) return;
+    if (!sample || !this.arenaView3D) return;
 
-    if (this.arenaView) {
-      this.arenaView.setFlyPosition(sample.flyX, sample.flyY, sample.flyHeading, sample.isFlying);
-      this.arenaView.setPredatorPosition(sample.mouseX, sample.mouseY, sample.threatActive ?? true);
-      if (this.arenaMode === '2d') {
-        this.arenaView.render();
-      }
-    }
+    // Map the trace's 800x600 arena onto the 3D chamber bounds.
+    const x3 = ((sample.flyX - 400) / 400) * 85;
+    const z3 = ((sample.flyY - 300) / 300) * 85;
+    const px3 = ((sample.mouseX - 400) / 400) * 85;
+    const pz3 = ((sample.mouseY - 300) / 300) * 85;
 
-    if (this.arenaView3D) {
-      // Map 2D 800x600 coordinates to 3D chamber bounds (-85 to +85)
-      const x3 = ((sample.flyX - 400) / 400) * 85;
-      const z3 = ((sample.flyY - 300) / 300) * 85;
-      const px3 = ((sample.mouseX - 400) / 400) * 85;
-      const pz3 = ((sample.mouseY - 300) / 300) * 85;
-
-      this.arenaView3D.setFlyPosition(x3, z3, sample.flyHeading, sample.isFlying);
-      this.arenaView3D.setPredatorPosition(px3, pz3, sample.threatActive ?? true);
-      if (this.arenaMode === '3d') {
-        this.arenaView3D.render();
-      }
-    }
+    this.arenaView3D.setFlyPosition(x3, z3, sample.flyHeading, sample.isFlying);
+    this.arenaView3D.setPredatorPosition(px3, pz3, sample.threatActive ?? true);
+    this.arenaView3D.render();
   }
 
-  /**
-   * Brain Surgery Screen (§12)
-   */
+  /* ---------- brain surgery ---------- */
+
   private renderSurgeryScreen(): void {
-    this.stopExperiment();
-    this.stopReplayLoop();
+    this.teardownScreen();
     this.state.setScreen('brainSurgery');
-    this.screenMount.innerHTML = '';
-
-    new BrainSurgeryPanel(this.screenMount);
-  }
-
-  private stopExperiment(): void {
-    this.arenaView?.stop();
-    this.arenaView3D?.stop();
-    this.neuroRenderer2D?.stop();
-    this.brainView3D?.stop();
-    this.connectomeLabView?.stop();
-    this.causalLabView?.dispose();
-    this.causalLabView = null;
+    this.screenBag.add(new BrainSurgeryPanel(this.screenMount));
   }
 
   private handleScreenChange(_screen: ScreenId): void {
-    // Screen transition hook
+    // Reserved: the badge already reacts via onEngineChange.
   }
 }
 
-// Bootstrap application on DOMContentLoaded
 window.addEventListener('DOMContentLoaded', () => {
   new AppOrchestrator();
 });
