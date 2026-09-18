@@ -97,3 +97,82 @@ MRC Laboratory of Molecular Biology, and Google Research (https://male-cns.janel
 Licensed under Creative Commons Attribution 4.0 International License (CC BY 4.0).
 https://creativecommons.org/licenses/by/4.0/
 ```
+
+---
+
+## 4. React Bits (UI motion effects)
+
+**This is NOT a plain MIT dependency. Read the condition below before reusing
+`src/ui/design/effects.ts`.**
+
+React Bits is licensed **MIT + Commons Clause License Condition v1.0** (GitHub
+reports its SPDX identifier as `NOASSERTION`, i.e. not a standard OSI license).
+Verified against the upstream `LICENSE.md` on 2026-09-18.
+
+The interface's motion primitives — `CountUp`, `DecryptedText`, `DotGrid`,
+`ClickSpark` and `AnimatedContent` — were **hand-ported from React to plain
+TypeScript** for this project. No React Bits source is vendored; the code in
+`src/ui/design/effects.ts` is original TypeScript written against the behaviour
+of the originals. The designs are theirs.
+
+**How the Commons Clause applies here.** The licence permits distributing the
+Software "as part of an application, website, or product", which is what this
+project does. It forbids selling, sublicensing or redistributing "the components
+themselves — whether alone, in a bundle, **or as a ported version**". So:
+
+- Using these effects inside FLY ESCAPE: permitted.
+- Lifting `src/ui/design/effects.ts` out and republishing it as a component
+  library, ported or otherwise: **not permitted** by the upstream condition.
+
+That restriction travels with the effects module even though this project's own
+code is MIT, and `src/ui/design/effects.ts` therefore is not covered by this
+project's MIT grant to the extent it embodies React Bits' designs.
+
+- Project: React Bits — <https://reactbits.dev>
+- Source: <https://github.com/DavidHDev/react-bits>
+
+### Verbatim License Text (MIT + Commons Clause License Condition v1.0):
+
+```
+MIT + Commons Clause License Condition v1.0
+
+Copyright (c) 2026 David Haz
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, and distribute the Software **as part of an application, website, or product**, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+## Commons Clause Restriction
+
+You may use this Software, including for any commercial purpose, **so long as you do not sell, sublicense, or redistribute the components themselves-whether alone, in a bundle, or as a ported version.**
+
+## No Warranty
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+---
+
+## 5. Escape physiology — literature cited in the interface
+
+The escape model in `src/engine/shared/EscapeModel.ts` implements published
+findings. These are citations, not code dependencies; no text or figures are
+reproduced.
+
+- von Reyn, C.R. *et al.* "A spike-timing mechanism for action selection."
+  *Nature Neuroscience* **17**, 962–970 (2014). doi:10.1038/nn.3741
+- Ache, J.M. *et al.* "Neural Basis for Looming Size and Velocity Encoding in the
+  *Drosophila* Giant Fiber Escape Pathway." *Current Biology* **29**,
+  1073–1081 (2019). doi:10.1016/j.cub.2019.01.079
+- Klapoetke, N.C. *et al.* "Ultra-selective looming detection from radial motion
+  opponency." *Nature* **551**, 237–241 (2017). doi:10.1038/nature24626

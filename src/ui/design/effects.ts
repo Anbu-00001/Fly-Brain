@@ -1,9 +1,17 @@
 /**
  * effects.ts
  *
- * Motion primitives, ported by hand from React Bits (reactbits.dev, MIT) to
- * plain TypeScript so they can be used without pulling React into an app whose
- * hot paths are a Web Worker, a canvas and a Three.js scene.
+ * Motion primitives, ported by hand from React Bits (reactbits.dev) to plain
+ * TypeScript so they can be used without pulling React into an app whose hot
+ * paths are a Web Worker, a canvas and a Three.js scene.
+ *
+ * LICENCE — READ BEFORE LIFTING THIS FILE INTO ANOTHER PROJECT.
+ * React Bits is MIT + Commons Clause License Condition v1.0, NOT plain MIT. The
+ * condition forbids selling, sublicensing or redistributing the components
+ * "whether alone, in a bundle, or as a ported version". Using them inside an
+ * application (this one) is expressly permitted; republishing this file as a
+ * component library is not. That restriction travels with this module even
+ * though the rest of this project is MIT. See NOTICE.md §4.
  *
  * The ports are deliberately conservative, because this is a scientific
  * instrument and not a landing page:

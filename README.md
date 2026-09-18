@@ -1,425 +1,224 @@
-# FLY ESCAPE: Can You Catch a 166,000-Neuron Brain?
-### 🧠⚡ Featuring FLYBRAIN: CONNECTOME LAB (GOD MODE) & CAUSALITY ENGINE (DEBUGGER)
+# FLY ESCAPE
 
-> A browser-native computational neuroscience platform where a simulated fruit fly (*Drosophila melanogaster*), driven by genuine connectome-based neural simulations, reacts in real time to a mouse-steered looming predator — paired with an interactive 3D neural sandbox to manipulate the nervous system, and a **causal discovery engine (GDB / Git for brains)** that searches the connectome to reverse-engineer behavioral circuits.
+**Can you catch a 166,000-neuron brain?**
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Connectome: FlyWire FAFB v783](https://img.shields.io/badge/Connectome-FlyWire%20FAFB%20v783-cyan.svg)](https://codex.flywire.ai)
-[![Connectome: MaleCNS v1.0](https://img.shields.io/badge/Connectome-MaleCNS%20v1.0-emerald.svg)](https://male-cns.janelia.org)
-[![Runtime: 100% Static Browser](https://img.shields.io/badge/Runtime-Static%20Browser%20(Vite%2BTS)-purple.svg)](#quickstart)
-[![Test Suite: 41/41 Passing](https://img.shields.io/badge/Tests-41%2F41%20Passing-brightgreen.svg)](#automated-test-suites)
-[![Causality: Zero Fake Results](https://img.shields.io/badge/Causality-Zero%20Fake%20Results-orange.svg)](#6-flybrain-neural-reality-engine--causality-laboratory)
-[![Framerate: 60 FPS Locked](https://img.shields.io/badge/Performance-60%20FPS%20Locked-success.svg)](#computational-benchmarks)
+An interactive *Drosophila* escape experiment driven by real, published
+connectome reconstructions. You steer a looming predator with the mouse; a
+simulated fly reacts. Then you lesion the circuit that produced the reaction and
+watch the escape disappear.
 
----
-
-## 1. Why This Exists
-
-Over the past few years, the neuroscience community achieved historic milestones: the complete electron-microscopy reconstruction of the adult *Drosophila melanogaster* brain (FlyWire Consortium, 2024) and the whole male central nervous system (FlyEM/HHMI Janelia, 2026).
-
-**FLY ESCAPE**, **CONNECTOME LAB**, and **CAUSAL LAB** bring these monumental datasets to life in an interactive, accessible browser application without requiring servers, heavy Python environments, or high-end GPUs:
-
-1. **FLY ESCAPE**: Steer a looming predator toward the fly. Watch real-time Leaky Integrate-and-Fire (LIF) dynamics propagate from ommatidia through lobula columnar projection neurons (`LC4`, `LPLC2`) down to the Giant Fiber (`DNp01`), triggering high-velocity escape jumps.
-2. **CONNECTOME LAB ("GOD MODE")**: Take direct control of the fly's central nervous system. Scrub time forward and backward through synaptic cascades (0–120ms), apply optogenetic-style neural interventions (`STIMULATE`, `SILENCE`, `INVERT`, `AMPLIFY`), trace synaptic domino cascades across 5 layers, solve behavioral puzzle challenges, and listen to neural spikes through a polyphonic Web Audio synthesizer.
-3. **CAUSAL LAB ("CIRCUIT DEBUGGER")**: Don't just manipulate the brain — reverse-engineer it. Give the engine a high-level behavioral goal (`prevent_escape`, `trigger_escape`, `delay_escape`, `reverse_direction`), and let an automated Delta Debugging (ddmin) algorithm search the connectome for the minimal intervention set that achieves that objective. Debug neural dynamics with GDB-style breakpoints, inspect membrane potential registers ($V_m$), track causal branches with Connectome Git, and execute declarative queries via Circuit Query Language (CQL).
+> **What makes this different from a demo:** every number on screen states where
+> it came from — measured from the running engine, derived from those
+> measurements, published in the literature, modelled by this project, or simply
+> authored by us. Nothing is presented as biology unless it is.
 
 ---
 
-## 2. Architecture: Two-Engine Topology & Causal Subsystems
+## Why this exists
 
-To balance low-latency browser interactivity with whole-CNS biophysical fidelity, the platform employs a dual-engine architecture:
+Two remarkable datasets were published recently: the complete synaptic wiring of
+an adult fly brain (FlyWire FAFB) and of a whole male central nervous system
+(MaleCNS). Both are freely available. Almost nobody outside the field ever
+interacts with them.
+
+This project is a thin, well-engineered layer over that existing work. It does
+not contain a new simulator and does not claim scientific novelty. It tries to
+do one thing well: make a real connectome legible by letting you poke it and
+break it, without lying to you about what you are seeing.
+
+## What is actually happening
 
 ```
-+---------------------------------------------------------------------------------------------------+
-|                        FLY ESCAPE • CONNECTOME LAB • CAUSALITY ENGINE                             |
-+---------------------------------------------------------------------------------------------------+
-                     │                                                      │
-                     ▼                                                      ▼
-        ┌─────────────────────────┐                            ┌─────────────────────────┐
-        │       ENGINE-LIVE       │                            │     ENGINE-RECORDED     │
-        │    (FlyWire FAFB v783)  │                            │     (MaleCNS v1.0)      │
-        │     139,255 neurons     │                            │     166,700 neurons     │
-        │     ~2.7M synapses      │                            │     25.6M synapses      │
-        └────────────┬────────────┘                            └────────────┬────────────┘
-                     │                                                      │
-            Browser Web Worker                                     Offline Python Tooling
-        (Real-time LIF simulation)                             (High-fidelity whole CNS)
-                     │                                                      │
-                     ▼                                                      ▼
-        ┌─────────────────────────┐                            ┌─────────────────────────┐
-        │   Interactive Runtime   │                            │   Deterministic Traces  │
-        │ • Mouse predator chase  │                            │ • Canonical 25s Replay  │
-        │ • 3D Connectome Lab     │                            │ • Brain Surgery Lesions │
-        │ • Causal Discovery Lab  │                            │ • LC4/LPLC2 vs DNp01    │
-        │ • Delta Debugging ddmin │                            │ • Exact firing times    │
-        │ • GDB Breakpoints & $V_m│                            │ • Zero runtime backend  │
-        │ • Connectome Git DAG    │                            └─────────────────────────┘
-        │ • CQL Console Engine    │
-        └─────────────────────────┘
+  YOU                  ENGINE-LIVE                      SCREEN
+  ───                  ───────────                      ──────
+  mouse ──> looming ──> inject into VIS_R1R6,   ──> measured spikes ──> telemetry
+            geometry    VIS_ME, VIS_LO, VIS_LPTC        per group        + arena
+                        (real FlyWire groups)
+                              │
+                              ├─ measured lobula activity ─┐
+                              │                            ├─> escape decision
+            angular size θ ───┴─ angular expansion dθ/dt ──┘   (MODELLED)
 ```
 
----
+The escape decision follows the published decomposition of the giant-fiber
+looming response: **LC4** encodes angular *velocity* roughly linearly, **LPLC2**
+encodes angular *size* as a Gaussian peaked near 42°, and giant-fiber-mediated
+takeoff becomes likely around a **39°** angular size.
 
-## 3. SERIOUS METRICS: Biological Ground Truth & Verification
+### The honest limitation, stated up front
 
-Every metric, neuron count, latency estimate, and performance number is grounded in peer-reviewed neuroscience literature and verified through automated test suites in the repository.
+ENGINE-LIVE ships FlyWire FAFB v783 rolled into 63 neuropil groups. In that
+packaging, **`LC4`, `LPLC2` and `DNp01` are not addressable populations.** Two
+consequences we surface rather than hide:
 
-### 3.1 Biological Connectome Metrics
+- **The live engine has 76 motor neurons.** Every descending (`DN_*`) and
+  leg/wing (`MN_*`) group in this dataset is empty. The fly's rendered movement
+  is our interpretation of activity, not a motor readout.
+- **The groups are not lateralised.** The live connectome cannot tell the fly
+  which way to turn, so escape *direction* is computed from stimulus geometry
+  and labelled AUTHORED throughout.
 
-| Biological Parameter | Quantitative Value | Biological Sourcing & Literature Citation |
-| :--- | :--- | :--- |
-| **Whole Brain Connectome Size** | **139,255 neurons**, ~2,700,000 synapses | FlyWire FAFB v783; Dorkenwald et al., *Nature* 634, 124–138 (2024) |
-| **Whole CNS Connectome Size** | **166,700 neurons**, 25,600,000 synapses | MaleCNS v1.0; Berg et al., *Cell* (2026), DOI: 10.1016/j.cell.2026.08.015 |
-| **Photoreceptor Array ($R1-R6$)** | 11,487 functional units | FlyWire Retina/Lamina; 40-facet synthesized receptive field |
-| **Medulla Interneurons ($Mi1, Tm1, Tm3$)** | 82,318 interneurons | Motion direction & spatiotemporal contrast preprocessing |
-| **Lobula Columnar Projection Array** | 1,793 projection neurons | Looming edge expansion feature extraction |
-| **Looming Detectors (`LC4`)** | 165 cells (unilateral / bilateral) | von Reyn et al., *Neuron* 83, 687–701 (2014); Ache et al., *Science* (2019) |
-| **Looming Detectors (`LPLC2`)** | 146 cells | von Reyn et al., *Neuron* (2014); Klapoetke et al., *Nature* (2017) |
-| **Giant Fiber Command (`DNp01`)** | 2 descending neurons (bilateral pair) | Classic Drosophila escape command; Allen et al., *J. Neurosci* (2006) |
-| **Central Complex Navigation (`CX_EPG`)** | 480 heading neurons (compass) | Seelig & Jayaraman, *Nature* 521 (2015); Green et al., *Nature* (2017) |
-| **Mushroom Body Kenyon Cells (`MB_KC`)** | 4,920 associative neurons | Aso et al., *eLife* (2014); Li et al., *eLife* (2020) |
-| **Thoracic Motor Output (`VNC_MOT`)** | 2,840 motor neurons & efferents | Direct motor axon innervation to flight & jump musculature |
-
-### 3.2 Biophysical Latencies & Reaction Dynamics
-
-| Biophysical Property | Quantitative Value | Biophysical Meaning |
-| :--- | :--- | :--- |
-| **Synaptic Delay per Hop** | 2.5 ms – 8.0 ms | Chemical synaptic transmission & dendritic integration latency |
-| **Giant Fiber Conduction Latency** | **3.8 ms** | Axonal transit from brain suboesophageal zone to thoracic ganglion |
-| **Escape Jump Behavioral Latency** | **40.0 ms** | Total latency from looming threshold detection to leg extensor takeoff |
-| **Optical Looming Expansion Threshold** | $\eta = 2.0\text{ rad/s}$ ($d\theta/dt$) | Rate of angular expansion triggering lobula columnar peak firing |
-| **Membrane Time Constant ($\tau_m$)** | ~10.0 ms | LIF passive leaky membrane integration decay rate |
-| **Refractory Period** | 2.0 ms | Absolute post-spike hyperpolarization period |
-
-### 3.3 Computational & System Performance Benchmarks
-
-All benchmarks measured on standard laptop hardware (Intel/AMD i7/Ryzen 7 integrated/mid-tier graphics, 16GB RAM):
-
-| Performance Metric | Benchmark Target | Measured In-Engine Result | Engineering Mechanism |
-| :--- | :--- | :--- | :--- |
-| **Rendering Framerate** | 60 FPS locked | **60 FPS** (16.6 ms per frame) | RequestAnimationFrame with DeltaTime throttling |
-| **Connectome WebGL Draw Calls** | $\le 15$ draw calls | **3 draw calls** (4,200 instanced nodes) | Single `InstancedMesh` with dynamic instance color buffers |
-| **Raycasting Hover Overhead** | $< 0.1\text{ ms}$ | **0.04 ms** per frame | 8 low-poly bounding-sphere proxies instead of 4,200 raw vertices |
-| **GPU Memory Footprint (VRAM)** | $< 150\text{ MB}$ | **~68 MB VRAM** | Shared low-poly buffers; instanced transforms; capped DPR = 1.5 |
-| **JS Heap Memory Usage** | $< 100\text{ MB}$ | **~48 MB Heap** | Zero object allocations in rendering and simulation inner loops |
-| **GPU Readback Pipeline Stalls** | 0 stalls | **0 calls to `gl.readPixels`** | Analytical raycasting and CPU math; zero GPU-to-CPU roundtrips |
-| **Causal Search Discovery Time** | $< 100\text{ ms}$ | **~26 ms** across 63 combinations | Analytical Delta Debugging state cache with pruning |
-| **Audio Latency** | $< 15\text{ ms}$ | **~8 ms** | Native Web Audio API `AudioContext` with recycled oscillator nodes |
-| **LIF Simulation Step Duration** | $< 15\text{ ms}$ / step | **8–12 ms** in Web Worker | Dedicated background Web Worker thread; UI thread never blocks |
+To lesion the *actual* looming detectors and the *actual* giant fiber, the
+experiment moves to ENGINE-RECORDED. That is what Brain Surgery does, and it is
+why Brain Surgery is recorded rather than live.
 
 ---
 
-## 4. Folder-by-Folder Verification Matrix
+## Architecture: two engines, one honest line between them
 
-Every claim, dataset, and metric in FLY ESCAPE is verified by a dedicated source module and automated test suite:
+| | **ENGINE-LIVE** | **ENGINE-RECORDED** |
+|---|---|---|
+| Dataset | FlyWire FAFB v783 | MaleCNS v1.0 |
+| Neurons / edges | 139,255 / 2,698,236 | 166,700 / 25,582,938 |
+| Coverage | Adult brain | Whole CNS (brain + optic lobes + VNC) |
+| Where it runs | Web Worker, in your browser | Python, offline, ahead of time |
+| Resolves LC4/LPLC2/DNp01 | **No** | **Yes** |
+| Powers | the interactive chase | Replay and Brain Surgery |
 
-```
-fly-escape/
-├── src/
-│   ├── engine/
-│   │   ├── live/             ──> [VERIFIES]: FlyWire FAFB 139,255-neuron Web Worker LIF simulation + biophysical interventions
-│   │   ├── recorded/         ──> [VERIFIES]: MaleCNS 166,700-neuron deterministic trace ingestion
-│   │   ├── causality/        ──> [VERIFIES]: Causal Engine, Delta Debugging (ddmin), Breakpoints, CQL, and Git DAG
-│   │   └── shared/           ──> [VERIFIES]: Circuit topology, looming optics, and kinematics
-│   ├── ui/
-│   │   ├── causality/        ──> [VERIFIES]: Ask The Brain Hero, Diff HUD, Causality Matrix, GDB HUD, Git Tree, CQL
-│   │   ├── lab/              ──> [VERIFIES]: Connectome Lab 3D renderer, audio synth, timeline, HUD
-│   │   └── ...               ──> [VERIFIES]: Arena, 2D/3D visualizers, neuropil meters, surgery
-│   └── state/                ──> [VERIFIES]: Seeded PRNG and frame-accurate input logs
-├── tests/                    ──> [VERIFIES]: 28 automated Vitest suites covering all modules
-├── precompute/               ──> [VERIFIES]: Offline Python pipeline generating MaleCNS JSON traces
-├── public/traces/            ──> [VERIFIES]: Ground-truth deterministic canonical and lesion traces
-└── vendor/flybrain/          ──> [VERIFIES]: Vendored FlyWire FAFB connectome assets & LIF solver
-```
+Everything shipped is static. **No backend, no database, no accounts, no Python
+at runtime.** `precompute/` is developer tooling that regenerates the recorded
+traces; you never need it to run the app.
 
-### Detailed Verification Table
-
-| Metric / Feature Subsystem | Verifying Code Location | Verifying Test Suite / Benchmark Command |
-| :--- | :--- | :--- |
-| **Deterministic Causal Kernel & Counterfactuals** | `src/engine/causality/CausalEngine.ts` | `tests/CausalEngine.test.ts` (`npm test`) |
-| **Delta Debugging (ddmin) Minimal Discovery** | `src/engine/causality/CausalSearch.ts` | `tests/CausalSearch.test.ts` (`npm test`) |
-| **Circuit Causality Matrix (12 populations)** | `src/engine/causality/CausalityMatrix.ts` | `tests/CausalEngine.test.ts` (`npm test`) |
-| **GDB Breakpoint Predicates & Stepping** | `src/engine/causality/BreakpointManager.ts` | `tests/BreakpointsAndCQL.test.ts` (`npm test`) |
-| **Circuit Query Language (CQL) Lexer/Parser** | `src/engine/causality/CircuitQueryLanguage.ts` | `tests/BreakpointsAndCQL.test.ts` (`npm test`) |
-| **Connectome Git Experiment Branching DAG** | `src/engine/causality/ExperimentGraph.ts` | `tests/CausalEngine.test.ts` (`npm test`) |
-| **Drosophila Circuit Topology & Graph** | `src/engine/shared/CircuitGraph.ts` | `tests/ConnectomeLab.test.ts` (`npm test`) |
-| **Domino Cascade & Reachability** | `src/engine/shared/CircuitGraph.ts` | `tests/ConnectomeLab.test.ts` (`npm test`) |
-| **Challenge Validation Logic** | `src/engine/shared/CircuitGraph.ts` | `tests/ConnectomeLab.test.ts` (`npm test`) |
-| **Zero-Backend URL Hash Codec** | `src/engine/shared/CircuitGraph.ts` | `tests/ConnectomeLab.test.ts` (`npm test`) |
-| **Looming Expansion Dynamics ($d\theta/dt$)** | `src/engine/shared/LoomingCalculator.ts` | `tests/LoomingCalculator.test.ts` (`npm test`) |
-| **3D Flight Kinematics & Collision** | `src/engine/shared/Kinematics3D.ts` | `tests/Kinematics3D.test.ts` (`npm test`) |
-| **Deterministic Replay Integrity** | `src/engine/recorded/RecordedEngine.ts` | `tests/TraceIntegrity.test.ts` (`npm test`) |
-| **Frame-Accurate Input Recording** | `src/state/InputRecorder.ts` | `tests/InputRecorder.test.ts` (`npm test`) |
-| **Deterministic Seeded PRNG** | `src/state/SeededRNG.ts` | `tests/TraceIntegrity.test.ts` (`npm test`) |
-| **Instanced 3D Rendering ($\le 15$ calls)** | `src/ui/lab/LabBrain3D.ts` | `npm run build` + WebGL Inspector |
-| **Zero-Lag Raycasting Proxies** | `src/ui/lab/LabBrain3D.ts` | Chrome DevTools Performance Profiler |
-| **0–120ms Cascade Scrubbing & Rewind** | `src/ui/lab/NeuralCascadeTimeline.ts` | Interactive browser test / Timeline scrubber |
-| **Polyphonic Web Audio Synthesizer** | `src/ui/lab/NeuralAudioSynth.ts` | Chrome AudioContext Profiler |
-| **MaleCNS 166,700-Neuron In-Silico Lesions** | `precompute/generate_lesion_traces.py` | `python precompute/generate_lesion_traces.py` |
-| **FlyWire 139,255-Neuron Live Worker** | `src/engine/live/LiveEngine.ts` | Browser runtime Web Worker console telemetry |
+A persistent badge states which engine produced whatever is on screen, and the
+neuron count shown always matches that engine. If the homepage subtitle and the
+live counter disagree, that is correct: they describe different engines.
 
 ---
 
-## 5. CONNECTOME LAB: GOD MODE Features
+## Reading the interface
 
-Connectome Lab provides an interactive, full-screen 3D interface for deep neural exploration:
+Every value carries a mark. The mark is a **shape** first and a colour second,
+so it survives greyscale and colour-blind vision.
 
-### 5.1 3D Connectome Explorer & Region Inspector HUD
-- **4,200 Instanced Synaptic Points**: Visualizes sensory (cyan), central processing (purple), drives (amber), and motor escape (coral) neural populations in a 3D glassmorphic Drosophila brain contour.
-- **Bounding-Sphere Raycast Proxies**: Hovering over or clicking any major brain region triggers immediate camera focus transitions and updates the technical HUD without frame drops.
-- **HUD Metadata**: Displays biological name, neuropil coordinates, total cell population, instant discharge rate (Hz), primary neurotransmitter (ACh, GABA, Glutamate), known synaptic inputs/outputs, and literature citations.
+| Mark | Meaning |
+|---|---|
+| ● **MEASURED** | Read directly from the engine producing what is on screen, this frame. |
+| ◐ **DERIVED** | Computed from measured values. The formula is shown. |
+| ◆ **PUBLISHED** | A real literature measurement — *not* produced by this simulation. |
+| ◇ **MODELLED** | A modelling choice made by this project, informed by the literature. |
+| ○ **AUTHORED** | Invented here. The arena, the predator and the rendered body are not biology. |
 
-### 5.2 Neural Cascade & Time Machine (0–120ms)
-- **Scrubbable High-Precision Timeline**: Step through an escape reflex millisecond by millisecond.
-- **Biological Milestones**: Clear visual pins at $t = 0\text{ ms}$ (threat looming), $t = 18\text{ ms}$ (lobula columnar peak), $t = 40\text{ ms}$ (Giant Fiber threshold), and $t = 75\text{ ms}$ (VNC motor takeoff).
-- **Rewind the Brain**: Run time in reverse (negative velocity playback) to observe excitation collapsing back through synaptic pathways to photoreceptors.
-- **Variable Speed**: Playback from 0.25x slow-motion up to 5.0x fast-forward.
+This is enforced by the type system, not by discipline: `Quantity<T>` in
+`src/engine/shared/Provenance.ts` cannot be constructed without a provenance.
 
-### 5.3 Neural Alchemy: In-Silico Optogenetic Interventions
-Apply synthetic biophysical modifications to any verified Drosophila circuit:
-- ⚡ **STIMULATE**: Injects depolarizing current (0.1–2.0x), elevating baseline spike rates.
-- 🚫 **SILENCE**: Hyperpolarizes targeted circuits, completely blocking action potential propagation.
-- 🔄 **INVERT**: Flips synaptic sign (turns excitatory cholinergic connections into inhibitory GABAergic transmission).
-- 🔊 **AMPLIFY**: Multiplies downstream synaptic weights by 1.5x–3.0x, hypersensitizing threat reflexes.
+### A note on time
 
-### 5.4 Neural Dominoes & Reachability Engine
-- Select any neuron population and click **"Fire Domino Cascade"**.
-- The engine executes a breadth-first search (BFS) through ground-truth synaptic connections, calculating:
-  - Total reachable downstream neurons across all hops.
-  - Maximum synaptic depth.
-  - Latency to motor activation (e.g. LC4 reaches thoracic motor neurons in 20.0 ms across 4 synaptic hops).
-
-### 5.5 "Can You Break The Fly?" Behavioral Challenges
-Four structured puzzle encounters testing circuit interventions under live countdown limits:
-1. **Blind the Fly**: Disable optical motion detection using $\le 1$ intervention.
-2. **Paralyze Escape**: Prevent takeoff jumps while keeping visual systems intact ($\le 1$ intervention).
-3. **Hypersensitive Trigger**: Force spontaneous Giant Fiber firing without any visual stimulus ($\le 1$ intervention).
-4. **Complete Circuit Sabotage**: Sever both visual feature extraction and motor command pathways ($\le 2$ interventions).
-- **Zero-Backend URL Hash Sharing**: Challenge setups and custom intervention configurations encode into URL hashes (e.g., `#lab?c=paralyze_escape&s=DNp01&i=silence:DNp01:1.00`) for instantaneous sharing.
-
-### 5.6 Polyphonic Web Audio Synthesizer
-- Built exclusively with the browser's native `AudioContext` (zero external libraries, zero overhead).
-- Maps regional firing rates to distinct audio frequencies:
-  - **Sensory / Optic Lobes**: High-frequency sine bursts (520–880 Hz).
-  - **Central Neuropils**: Mid-range triangle waves (330–440 Hz).
-  - **Mushroom Body / Navigation**: Resonant square bursts (220–293 Hz).
-  - **Giant Fiber (`DNp01`)**: 65 Hz sub-bass sawtooth transient on escape discharge.
-
-### 5.7 30-Second Automated Cinematic Showcase
-- Automated camera choreography gliding around the 3D connectome.
-- Progressively highlights visual inputs, lobula looming feature detectors, Giant Fiber command neurons, and thoracic motor cascades with synchronized narrative overlays.
+ENGINE-LIVE's leaky integrate-and-fire model is **dimensionless** — threshold
+1.0, no `dt`, no membrane time constant, no conduction delays. Its ticks are not
+milliseconds and its membrane state is not millivolts. Live timing is therefore
+reported in **ticks**, and the wall-clock response time is labelled as exactly
+that. ENGINE-RECORDED genuinely integrates at `dt = 0.02 s`, so milliseconds are
+real there.
 
 ---
 
-## 6. FLYBRAIN: CAUSALITY ENGINE & NEURAL CIRCUIT DEBUGGER
-*"Don't just manipulate the brain. Reverse-engineer it."*
+## Brain Surgery
 
-Causal Lab transforms Fly-Brain from an exploratory sandbox into an automated causal discovery laboratory. Instead of guessing interventions by trial-and-error, the user specifies a high-level behavioral target, and the engine automatically isolates the minimal causal circuit in the connectome.
+The centrepiece result. One fixed predator trajectory, run three times through
+the whole-CNS connectome:
 
-### 6.1 "Ask The Brain" & Delta Debugging (ddmin) Minimal Set Discovery
-- **Target Behavioral Objectives**:
-  - `prevent_escape`: Silence minimum neurons to abolish takeoff under looming threat.
-  - `trigger_escape`: Minimal stimulation set forcing takeoff without visual stimuli.
-  - `delay_escape`: Interventions shifting escape takeoff latency by $+20\text{ ms}$.
-  - `reverse_direction`: Interventions flipping evasion angle by $180^\circ$.
-  - `suppress_visual_preserve_motor`: Silencing optical projection while preserving motor capability.
-  - `maximize_startle`: Interventions maximizing instantaneous network spike rate.
-  - `minimize_activation`: Minimal network load achieving successful evasion.
-- **Budgeted Search & Algorithm Selection**:
-  - Search budgets supported: **10, 50, 100, 500 experiments**.
-  - Multiple algorithms: **Adaptive Probing**, **Delta Debugging (ddmin)**, **Beam Search** (width=3), and **Genetic Algorithm (GA)**.
-  - **ZERO FAKE RESULTS**: All solutions and divergence times are evaluated directly against connectome simulation states. If a budget is exhausted without finding a solution, it reports failure honestly.
-- **Cost Function Optimization**:
-  $$C = N_{\text{inv}} + \lambda \cdot N_{\text{neurons}} + \mu \cdot t_{\text{div}}$$
-  where $N_{\text{inv}}$ is number of interventions, $N_{\text{neurons}}$ is total biological neurons modified, and $t_{\text{div}}$ is latency to first neural divergence.
-- **Pareto Frontier**:
-  Computes the optimal trade-off frontier between intervention complexity and behavioral efficacy across candidate combinations in under $30\text{ ms}$.
-- **Autonomous Discovery Mode**:
-  Autonomous loop sweeping across all behavioral target objectives, discovering minimal and robust intervention sets without human trial-and-error, generating an immutable `AutonomousDiscoveryReport`.
+| Condition | Giant fiber | Outcome |
+|---|---|---|
+| **Intact** | fires at step 102 (40 ms) | escapes |
+| **LC4 / LPLC2 lesioned** (311 neurons) | never fires | caught at 3.94 s |
+| **DNp01 lesioned** (2 neurons) | never fires | caught at 3.94 s |
 
-### 6.2 Deterministic Counterfactual Replay ($A(t) - B(t)$) & Provenance
-- **Simultaneous Trajectory Forking**:
-  Runs Trajectory $A$ (Baseline Control) and Trajectory $B$ (Counterfactual Intervened) under identical stimulus.
-- **First Divergence Pin ($t_{\text{div}}$)**:
-  Pinpoints the exact millisecond where neural dynamics between $A$ and $B$ first diverge ($t_{\text{div}} = 22\text{ ms}$ – $38\text{ ms}$).
-- **Machine-Readable Provenance Graph (`ProvenanceRecord`)**:
-  Every output is stamped with execution authority (`WORKER_CONNECTOME_SIMULATION` or `EXPERIMENTAL_KERNEL`), active dataset (`FlyWire FAFB v783`), neuron count (`139,255`), non-approximated flag (`isApproximated: false`), and verifiable cryptographic hash.
+Removing two neurons out of 166,700 — one bilateral pair — abolishes the escape.
+That is the whole point of the giant fiber, and you can watch it happen.
 
-### 6.3 Circuit Causality Matrix (Necessary vs. Sufficient)
-Evaluates empirical causal roles for all 12 Drosophila populations:
-- **Necessary ($N$)**: Does silencing this population abolish behavior under looming threat?
-- **Sufficient ($S$)**: Does activating this population trigger behavior without looming stimulus?
-- Classifications:
-  - **BOTH (Necessary & Sufficient)**: `DNp01` (Giant Fiber), `VIS_LO` (Lobula Columnar array), `VIS_R1R6` (Photoreceptors).
-  - **SUFFICIENT ONLY**: `LPLC2` (Lobula plate columnar type 2 — activation fires giant fiber, but silencing alone is compensated by LC4).
-  - **MODULATORY / NEITHER**: `CX_EPG` (Compass steering), `MB_KC` (Kenyon associative memory), `VNC_CPG` (Pattern generators).
-
-### 6.4 GDB Breakpoint Debugger & Stepping
-A true biophysical execution debugger for nervous systems:
-- **Predicate Breakpoints**:
-  - `ON_SPIKE`: Halts simulation immediately when a targeted population fires (e.g., `DNp01`).
-  - `ON_THRESHOLD`: Halts when membrane potential exceeds threshold ($V_m > -45\text{ mV}$).
-  - `ON_DELTA`: Halts when divergence $|V_A(t) - V_B(t)| > 10\text{ mV}$.
-- **Stepping Controls**:
-  - `STEP 1ms`: Advance simulation by exactly 1 millisecond.
-  - `STEP 10ms`: Advance by one full synaptic integration window.
-  - `CONTINUE` & `REWIND`: Resume continuous execution or rewind to zero.
-- **Live Membrane Potential Registers**:
-  Real-time inspection grid displaying current voltage ($V_m$ in mV) and cumulative spike counts across all 12 circuit nodes.
-
-### 6.5 Cross-Engine Connectome Verification (Phase 10)
-Direct side-by-side comparative biophysical evaluation between:
-1. **ENGINE-LIVE**: FlyWire FAFB v783 (139,255 neurons, brain-only)
-2. **ENGINE-RECORDED**: MaleCNS v1.0 (166,700 neurons, whole CNS: brain + VNC)
-- **Concordance Scoring**: Evaluates whether both connectomes agree on escape threshold crossing (`CONCORDANT`) or diverge (`DISCORDANT`).
-- **Latency Delta ($\Delta t$)**: Computes quantitative conduction divergence between brain-only and whole-CNS motor pathways.
-
-### 6.6 Mutation Mode & 2D Dynamical Phase Map (Phase 16)
-Interactive parameter space explorer sweeping passive membrane leak rate ($\tau_{\text{decay}}$) and firing threshold ($V_{\text{th}}$):
-- **Phase 1: ESCAPE (green)** — feedforward excitation crosses Giant Fiber threshold.
-- **Phase 2: WALK / SUBTHRESHOLD (yellow)** — low-level motor activity without flight takeoff.
-- **Phase 3: SIGNAL EXTINCTION (red)** — excitation dies out in early visual layers.
-Interactive slider for Looming Velocity ($1.0\times$ to $4.0\times$) recomputes bifurcation boundaries dynamically.
-
-### 6.7 Connectome Git: Experiment Branching & Diff DAG
-- **Experiment Commits**: Every hypothesis and intervention set is tracked as an immutable commit (`EXP-001`, `EXP-002`, `EXP-003`).
-- **DAG Branching**: Branch new experiments from any historical checkpoint ($S_0, S_1, S_2$) without corrupting baseline controls.
-- **Two-Way Counterfactual Diff**: Select any two experiment nodes in the DAG and click **"COMPARE DIFF"** to instantly visualize their $A(t) - B(t)$ differential.
-
-### 6.8 Circuit Query Language (CQL) Terminal
-A domain-specific declarative query language for connectome exploration:
-- `WHAT_IF SILENCE DNp01` — runs counterfactual simulation with DNp01 silenced.
-- `COMPARE BASELINE VS DNp01` — generates two-way diff between intact control and DNp01 ablation.
-- `CAUSES prevent_escape` — triggers Delta Debugging minimal intervention search.
-- `PATH VIS_LO TO DNp01` — calculates synaptic shortest-path hops and conduction latency.
-- `DOWNSTREAM LC4 DEPTH 3` — lists all reachable post-synaptic targets within 3 synaptic layers.
-- `BREAK WHEN DNp01 > -45.0` — arms a voltage breakpoint on the Giant Fiber.
-
-### 6.9 Verification & Test Coverage Matrix
-
-Every capability in FLY ESCAPE is verified by automated test suites in the repository:
-
-| Capability / Metric | Ground Truth Quantitative Value | Verification Test Suite & Code File |
-| :--- | :--- | :--- |
-| **Biophysical LIF Simulation** | Biological integration over `DROSOPHILA_SYNAPTIC_EDGES` | `tests/NeuralRealityEngine.test.ts` & `src/engine/causality/ExperimentKernel.ts` |
-| **Ablation Abolishes Escape** | `DNp01` silencing yields `escaped: false`, takeoff $-1$ | `tests/NeuralRealityEngine.test.ts` |
-| **Cryptographic Manifests** | SHA256 Result Hash, `isApproximated: false` | `tests/NeuralRealityEngine.test.ts` |
-| **Budget Enforcement** | Strictly $\le N$ evaluations (10, 50, 100, 500) | `tests/NeuralRealityEngine.test.ts` & `src/engine/causality/CausalSearch.ts` |
-| **Zero Fake Results** | Reports truthful failure when budget exhausted | `tests/NeuralRealityEngine.test.ts` |
-| **Beam & Genetic Search** | Combinatorial exploration with beam/mutation | `tests/NeuralRealityEngine.test.ts` |
-| **Cross-Engine Concordance** | FlyWire 139k vs MaleCNS 166k latency delta | `tests/NeuralRealityEngine.test.ts` & `src/engine/causality/CrossEngineComparator.ts` |
-| **Mutation Phase Regimes** | Escape vs Walk vs Signal Extinction bifurcation | `tests/NeuralRealityEngine.test.ts` & `src/engine/causality/MutationPhaseExplorer.ts` |
-| **Causal Search Determinism** | 100% deterministic solution reproduction | `tests/CausalSearch.test.ts` |
-| **Causality Matrix** | Necessary vs Sufficient classification | `tests/CausalSearch.test.ts` |
-| **CQL Parser & AST Execution**| Declarative syntax execution (`WHAT_IF`, `BREAK`) | `tests/BreakpointsAndCQL.test.ts` |
-| **3D Kinematics & Looming** | Angular expansion rate $\eta = 2\arctan(R/D)$ | `tests/LoomingCalculator.test.ts` & `tests/Kinematics3D.test.ts` |
-| **Input Log Determinism** | SHA-256 byte-for-byte replay reproducibility | `tests/InputRecorder.test.ts` |
-| **MaleCNS Precompute Integrity**| 166,700 neurons, CC BY 4.0 attribution verified | `tests/TraceIntegrity.test.ts` |
+These are precomputed deterministic traces, labelled RECORDED, never live.
 
 ---
 
-## 7. What is Biological vs. Engineered
-
-To maintain strict scientific honesty, the boundary between biological reality and computational models is explicitly defined:
-
-| Domain | Biological Ground Truth | Computational Model / Engineering |
-| :--- | :--- | :--- |
-| **Circuit Topology** | Electron-microscopy reconstructed synaptic connectivity (FlyWire FAFB & MaleCNS v1.0). | Thresholded edge weights and fixed excitatory/inhibitory sign assignments. |
-| **Neuron Dynamics** | Biological neurons exhibit graded potentials, complex dendritic trees, and ion channels. | Point-neuron Leaky Integrate-and-Fire (LIF) model with fixed membrane time constants. |
-| **Visual Stimulus** | Natural compound eyes with ~800 ommatidia per eye, motion-sensitive T4/T5 circuits. | Continuous optical looming equations $\theta(t) = 2 \arctan(R / D(t))$ mapped onto synthetic ommatidia. |
-| **Locomotion** | Complex aerodynamic wing biomechanics and thoracic muscle actuation. | Simplified 2D kinematic simulation (turn rate and thrust driven by motor neuron populations). |
-| **Plasticity** | Real brains exhibit neuromodulation, habituation, and synaptic plasticity. | **Static connectome with zero learning or training.** The fly does not learn; its escape is an innate reflex circuit. |
-
----
-
-## 8. Brain Surgery: Comparative In-Silico Lesions
-
-The **Brain Surgery** laboratory allows users to observe behavioral failure modes under an identical recorded predator trajectory:
-
-1. **Control (Intact Whole-CNS)**:
-   - Looming stimulus is detected by Lobula Columnar neurons (`LC4`, `LPLC2`).
-   - Excitation propagates to the Giant Fiber (`DNp01`) escape command neuron.
-   - `DNp01` reaches threshold at $t = 40\text{ ms}$; the fly executes an evasive takeoff jump and **escapes**.
-2. **Sensory Ablation (`LC4` & `LPLC2` Silenced — 311 visual neurons)**:
-   - The visual looming pathway is blocked; downstream Giant Fiber never fires.
-   - The fly remains stationary and is **caught**.
-3. **Motor Command Ablation (`DNp01` Silenced — 2 Giant Fiber neurons)**:
-   - Looming threat is successfully detected in the optic lobes, but the descending command pathway to thoracic motor neurons is severed.
-   - Takeoff reflex fails; the fly is **caught**.
-
----
-
-## 9. Quickstart
-
-Running FLY ESCAPE, CONNECTOME LAB, and CAUSAL LAB requires **no Python, no database, and no server configuration**:
+## Install and run
 
 ```bash
-# 1. Clone the repository
-git clone https://github.com/Anbu-00001/Fly-Brain.git
-cd Fly-Brain
-
-# 2. Install dependencies
 npm install
-
-# 3. Start local development server
 npm run dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173) in any modern browser supporting WebGL (Chrome, Firefox, Safari, Edge).
-
-### Automated Test Suites
+That is all. No Python, no server, no dataset download beyond the ~12 MB
+connectome that ships with the repo.
 
 ```bash
-# Run deterministic Vitest test suites (41 tests in 9 suites)
-npm test
-
-# Build production bundle with zero Vitest footprint
-npm run build
+npm run build      # typecheck + production bundle
+npx vitest run     # 31 tests
 ```
 
----
-
-## 10. Optional: Regenerating Recorded Traces (`precompute/`)
-
-Precomputed deterministic traces (`public/traces/*.json`) are committed to the repository. If you wish to regenerate them using `ENGINE-RECORDED` (`flybrain` Python package):
+<details>
+<summary>Regenerating the recorded traces (optional, not needed to run the app)</summary>
 
 ```bash
 cd precompute
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-
-# Run whole-CNS connectome simulations
+pip install -r requirements.txt     # pulls flybrain + ~260 MB of connectome files
 python generate_demo_trace.py
 python generate_lesion_traces.py
 ```
 
-*Note: Precompute downloads ~260 MB of prebuilt MaleCNS v1.0 connectome data on first run.*
+Requires real desktop compute. The committed traces in `public/traces/` are the
+output of exactly these scripts.
+</details>
 
 ---
 
-## 11. Attribution & Scientific Citations
+## What is biological, and what is not
 
-Detailed copyright notices and verbatim license files are documented in [NOTICE.md](NOTICE.md).
+| Layer | Status |
+|---|---|
+| The wiring | **Real.** EM-reconstructed connectomes, published and cited below. |
+| The neuron model | **An approximation.** Leaky integrate-and-fire is not how biological neurons work. |
+| The escape decision | **Modelled.** Follows published LC4/LPLC2 tuning; not a measurement of those cells. |
+| The arena and predator | **Authored.** Invented by this project. No biological counterpart. |
+| The fly's movement | **Authored.** Our interpretation of activity, not validated animal behaviour. |
 
-### Upstream Software & Connectome Lineage
+**Nothing in this project is trained, and nothing here thinks.** Both engines are
+fixed biological wiring driven by injected input. There is no learning, no
+training, no adaptation, and no claim of sentience.
 
-- **ENGINE-LIVE (`snedea/flybrain`)**:
-  - Source: [https://github.com/snedea/flybrain](https://github.com/snedea/flybrain) (MIT License)
-  - Citations: Dorkenwald, S., Matsliah, A., Sterling, A.R. *et al.* "Neuronal wiring diagram of an adult brain." *Nature* 634, 124–138 (2024). [doi:10.1038/s41586-024-07558-y](https://doi.org/10.1038/s41586-024-07558-y)
-  - Connectome Data: FlyWire Codex public dataset ([codex.flywire.ai](https://codex.flywire.ai))
-  - Attribution: FlyWire Consortium, Timothy Busbice, Gabriel Garrett, Geoffrey Churchill (GoPiGo Connectome), Zach Rispoli, Seth Miller (`worm-sim`).
+## Limitations
 
-- **ENGINE-RECORDED (`flybrain` / `alextitonis/fly.ai`)**:
-  - PyPI: [https://pypi.org/project/flybrain/](https://pypi.org/project/flybrain/) | Source: [https://github.com/alextitonis/fly.ai](https://github.com/alextitonis/fly.ai) (MIT License)
-  - Connectome Data: MaleCNS v1.0 licensed under **Creative Commons Attribution 4.0 International (CC BY 4.0)**.
-  - Citation: Berg, S. *et al.* (2026). "Sexual dimorphism in the complete connectome of the *Drosophila* male central nervous system." *Cell.* [doi:10.1016/j.cell.2026.08.015](https://doi.org/10.1016/j.cell.2026.08.015)
-  - Data Providers: FlyEM/HHMI Janelia, University of Cambridge, MRC Laboratory of Molecular Biology, Google Research ([male-cns.janelia.org](https://male-cns.janelia.org)).
-  - Neuron Model: Jessica Paquette ("Fly64", [github.com/ornata/fly](https://github.com/ornata/fly)).
+- The live engine cannot resolve the very cell types the project is about (above).
+- The live LIF model carries no biological time, so live latencies are not
+  comparable to published reaction times.
+- Escape direction and locomotion are authored, not read out of the connectome.
+- The recorded traces cover one fixed trajectory. They are a demonstration of a
+  known result, not a new finding.
+- LIF over a static connectome omits neuromodulation, graded potentials, gap
+  junctions, synaptic plasticity and conduction delays.
 
----
+## Attribution
 
-## 12. License
+Full third-party license texts are in [`NOTICE.md`](./NOTICE.md).
 
-- FLY ESCAPE application source code: **MIT License** (see [LICENSE](LICENSE)).
-- Connectome datasets: FlyWire FAFB data (FlyWire terms) and MaleCNS v1.0 data (**CC BY 4.0**). See [NOTICE.md](NOTICE.md) for full notices.
+**Connectome data**
+- Dorkenwald, S., Matsliah, A., Sterling, A.R. *et al.* "Neuronal wiring diagram
+  of an adult brain." *Nature* **634**, 124–138 (2024).
+  <https://doi.org/10.1038/s41586-024-07558-y> — FlyWire Codex, FlyWire Consortium.
+- Berg, S. *et al.* "Sexual dimorphism in the complete connectome of the
+  *Drosophila* male central nervous system." *Cell* (2026).
+  doi:10.1016/j.cell.2026.08.015 — MaleCNS v1.0, FlyEM/HHMI Janelia, University
+  of Cambridge, MRC Laboratory of Molecular Biology, Google Research.
+  Data **CC BY 4.0**.
+
+**Escape physiology**
+- von Reyn, C.R. *et al.* "A spike-timing mechanism for action selection."
+  *Nature Neuroscience* **17**, 962–970 (2014). doi:10.1038/nn.3741
+- Ache, J.M. *et al.* "Neural Basis for Looming Size and Velocity Encoding in the
+  *Drosophila* Giant Fiber Escape Pathway." *Current Biology* **29**, 1073–1081
+  (2019). doi:10.1016/j.cub.2019.01.079
+- Klapoetke, N.C. *et al.* "Ultra-selective looming detection from radial motion
+  opponency." *Nature* **551**, 237–241 (2017). doi:10.1038/nature24626
+
+**Upstream code**
+- ENGINE-LIVE is adapted from `snedea/flybrain` (**MIT**), which carries forward
+  credit to the FlyWire Consortium; Timothy Busbice, Gabriel Garrett and Geoffrey
+  Churchill (GoPiGo Connectome); Zach Rispoli; and Seth Miller / `heyseth/worm-sim`.
+- ENGINE-RECORDED uses the `flybrain` PyPI package (**MIT**, source
+  `alextitonis/fly.ai`), whose neuron model follows "Fly64" by Jessica Paquette.
+- UI motion effects are hand-ported from [React Bits](https://reactbits.dev)
+  into plain TypeScript. React Bits is **MIT + Commons Clause**, not plain MIT:
+  you may use these effects inside an application, but you may not republish
+  them as a component library, *including as a ported version*. See
+  [`NOTICE.md`](./NOTICE.md) §4 before reusing `src/ui/design/effects.ts`.
+
+This project's own code is **MIT** — see [`LICENSE`](./LICENSE).
