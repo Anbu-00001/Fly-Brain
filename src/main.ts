@@ -45,6 +45,9 @@ import { ReplayControls } from './ui/ReplayControls';
 import { BrainSurgeryPanel } from './ui/BrainSurgeryPanel';
 import { AboutDrawer } from './ui/AboutDrawer';
 import { DisposalBag } from './ui/render/Lifecycle';
+import { dotGrid, clickSpark, animateOnReveal, decryptText } from './ui/design/effects';
+import { quantityPanel } from './ui/ProvenanceTag';
+import { computeEscapeDecision, describeDecision } from './engine/shared/EscapeModel';
 
 type ArenaMode = '2d' | '3d';
 
@@ -202,7 +205,20 @@ class AppOrchestrator {
         </div>
       </div>
     `;
-    document.getElementById('btnStartExperiment')?.addEventListener('click', () => {
+    const home = this.screenMount.querySelector('.home-screen') as HTMLElement | null;
+    if (home) {
+      home.classList.add('fx-grain');
+      this.screenBag.add(dotGrid(home));
+      this.screenBag.add(animateOnReveal(home));
+    }
+
+    const startBtn = document.getElementById('btnStartExperiment');
+    if (startBtn) {
+      this.screenBag.add(clickSpark(startBtn));
+      const title = this.screenMount.querySelector('.hero-title') as HTMLElement | null;
+      if (title) this.screenBag.add(decryptText(title, 'FLY ESCAPE', 700));
+    }
+    startBtn?.addEventListener('click', () => {
       this.updateNavButtons('navExperiment');
       this.renderExperimentScreen(true);
     });
@@ -278,6 +294,12 @@ class AppOrchestrator {
         }
       });
     });
+
+    // The explorable-explanation layer: every figure behind the escape decision,
+    // each carrying its own provenance, with the legend that decodes the glyphs.
+    const esc0 = computeEscapeDecision({ thetaRad: 0, expansionRateRadPerS: 0, lobulaActivity: 0 });
+    panelEl.appendChild(quantityPanel('ESCAPE DECISION — HOW THIS IS COMPUTED', describeDecision(esc0, 0)));
+    this.screenBag.add(animateOnReveal(panelEl));
 
     this.liveEngine.reset();
     this.liveEngine.start();

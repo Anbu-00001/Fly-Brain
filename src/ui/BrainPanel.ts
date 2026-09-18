@@ -6,6 +6,7 @@
  */
 
 import { SimulationTickData } from '../engine/shared/ConnectomeTypes';
+import { countUp } from './design/effects';
 
 export interface BrainPanelCallbacks {
   onToggle3D?: (is3D: boolean) => void;
@@ -70,22 +71,34 @@ export class BrainPanel {
             <span class="stat-value highlight-cyan" id="statActiveCount">0</span>
             <span class="stat-sub" id="statFiringPct">(0.0%)</span>
           </div>
+          <span class="prov prov-measured" tabindex="0"
+            title="Measured: ENGINE-LIVE reports this directly as firedNeurons for the tick on screen.">
+            <span class="prov-glyph" aria-hidden="true">●</span>MEASURED
+          </span>
         </div>
 
         <div class="stat-card">
-          <span class="stat-label">REACTION LATENCY</span>
+          <span class="stat-label">RESPONSE TIME</span>
           <div class="stat-number-row">
-            <span class="stat-value highlight-amber" id="statLatency">--</span>
-            <span class="stat-sub">ms</span>
+            <span class="stat-value" id="statLatency">--</span>
+            <span class="stat-sub">ms wall-clock</span>
           </div>
+          <span class="prov prov-derived" tabindex="0"
+            title="Derived: browser wall-clock between threat onset and takeoff, measured with performance.now(). This is the simulation's real-time response, NOT a biological reaction latency — ENGINE-LIVE's LIF model carries no biological time.">
+            <span class="prov-glyph" aria-hidden="true">◐</span>DERIVED
+          </span>
         </div>
 
         <div class="stat-card">
-          <span class="stat-label">SPIKE RATE</span>
+          <span class="stat-label">SPIKES / TICK</span>
           <div class="stat-number-row">
-            <span class="stat-value highlight-crimson" id="statSpikeRate">0</span>
-            <span class="stat-sub">Hz/k</span>
+            <span class="stat-value" id="statSpikeRate">0</span>
+            <span class="stat-sub">ticks, not seconds</span>
           </div>
+          <span class="prov prov-measured" tabindex="0"
+            title="Measured: neurons that fired on the most recent worker tick. Reported per TICK, not per second: the previous build multiplied this by 10 and labelled it Hz, but 10 is the worker's render cadence, not a biological rate.">
+            <span class="prov-glyph" aria-hidden="true">●</span>MEASURED
+          </span>
         </div>
       </div>
 
@@ -185,7 +198,7 @@ export class BrainPanel {
 
   public updateTick(data: SimulationTickData, totalNeurons: number, latencyMs: number | null): void {
     // 1. Numerical counts
-    this.activeCountEl.textContent = data.firedCount.toLocaleString();
+    countUp(this.activeCountEl, data.firedCount);
     const pct = ((data.firedCount / totalNeurons) * 100).toFixed(1);
     this.firingPctEl.textContent = `(${pct}%)`;
 
@@ -200,23 +213,25 @@ export class BrainPanel {
     }
     this.updateSparkline();
 
-    // 3. Firing rate estimate
-    this.spikeRateEl.textContent = Math.round(data.firedCount * 10).toLocaleString();
+    // 3. Spikes on this tick. Deliberately NOT converted to Hz: multiplying by
+    //    the worker's 10/sec render cadence would state a biological rate the
+    //    dimensionless LIF model cannot support.
+    countUp(this.spikeRateEl, data.firedCount);
 
     // 4. Regional breakdown
     const rf = data.regionalFired;
     const regMax = Math.max(1, rf.sensory, rf.central, rf.drives, rf.motor);
 
-    this.valSensory.textContent = rf.sensory.toLocaleString();
+    countUp(this.valSensory, rf.sensory);
     this.barSensory.style.width = `${Math.round((rf.sensory / regMax) * 100)}%`;
 
-    this.valCentral.textContent = rf.central.toLocaleString();
+    countUp(this.valCentral, rf.central);
     this.barCentral.style.width = `${Math.round((rf.central / regMax) * 100)}%`;
 
-    this.valDrives.textContent = rf.drives.toLocaleString();
+    countUp(this.valDrives, rf.drives);
     this.barDrives.style.width = `${Math.round((rf.drives / regMax) * 100)}%`;
 
-    this.valMotor.textContent = rf.motor.toLocaleString();
+    countUp(this.valMotor, rf.motor);
     this.barMotor.style.width = `${Math.round((rf.motor / regMax) * 100)}%`;
 
     // 5. Active Groups Pills

@@ -1,0 +1,121 @@
+/**
+ * tokens.css — the design system's vocabulary.
+ *
+ * The stylesheet this replaces had 4,573 lines, 39 distinct hex colours and 28
+ * `!important` declarations. Nothing was reusable, so every new panel invented
+ * its own blues and its own spacing, and the result read as decoration applied to
+ * data rather than as an instrument displaying it.
+ *
+ * The rules here are deliberately few:
+ *
+ *   ONE accent. Cyan means "live measurement". If everything glows, nothing is
+ *   emphasised, and an instrument's whole job is emphasis.
+ *
+ *   PROVENANCE IS THE PALETTE. The five provenance kinds get the only other
+ *   saturated colours in the system, because in this app "where did this number
+ *   come from" is the most important thing a colour can encode. They are also
+ *   shape-coded with glyphs, so the meaning survives colour-blind vision and
+ *   greyscale printing.
+ *
+ *   NEAR-BLACK, NOT BLACK. #05070b has a blue undertone; pure black on an OLED
+ *   laptop panel next to glowing cyan is harsh over a long session.
+ */
+
+:root {
+  /* ---- surfaces: a ramp, not a collection ---- */
+  --bg-void: #05070b;
+  --bg-base: #080b11;
+  --bg-panel: #0d1118;
+  --bg-raised: #121722;
+  --bg-inset: #05080d;
+
+  /* ---- hairlines ---- */
+  --line-faint: rgba(148, 178, 214, 0.08);
+  --line: rgba(148, 178, 214, 0.15);
+  --line-strong: rgba(148, 178, 214, 0.28);
+
+  /* ---- text: four steps, no more ---- */
+  --ink-hi: #e8f0f8;
+  --ink: #a8b8cc;
+  --ink-lo: #6b7d94;
+  --ink-faint: #47576b;
+
+  /* ---- the single accent ---- */
+  --accent: #35e0e8;
+  --accent-dim: #1a8f96;
+  --accent-glow: rgba(53, 224, 232, 0.16);
+
+  /* ---- provenance: the meaningful palette ---- */
+  --prov-measured: #35e0e8;  /* read from the engine        */
+  --prov-derived: #4ec9a8;   /* computed from measurements  */
+  --prov-published: #e0a83a;  /* real biology, not from here */
+  --prov-modeled: #a98bf0;   /* our modelling choice        */
+  --prov-invented: #7d8ea3;  /* authored by this project    */
+
+  /* ---- engine identity ---- */
+  --live: #35e0e8;
+  --recorded: #e0a83a;
+
+  /* ---- status ---- */
+  --danger: #ff5c6e;
+  --success: #4ec9a8;
+  --warn: #e0a83a;
+
+  /* ---- region identity (four buckets the engine reports) ---- */
+  --region-sensory: #35e0e8;
+  --region-central: #a98bf0;
+  --region-drives: #e0a83a;
+  --region-motor: #ff7a8a;
+
+  /* ---- type ---- */
+  --font-ui: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Inter, sans-serif;
+  --font-data: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+
+  --fs-micro: 0.6875rem;
+  --fs-tiny: 0.75rem;
+  --fs-sm: 0.8125rem;
+  --fs-base: 0.9375rem;
+  --fs-lg: 1.125rem;
+  --fs-xl: 1.5rem;
+  --fs-display: clamp(2.5rem, 7vw, 4.5rem);
+  --fs-metric: clamp(1.5rem, 3vw, 2.25rem);
+
+  /* Wide tracking reads as instrument labelling; reserved for small caps. */
+  --track-wide: 0.14em;
+  --track-wider: 0.22em;
+
+  /* ---- spacing: a 4px scale ---- */
+  --s1: 0.25rem;
+  --s2: 0.5rem;
+  --s3: 0.75rem;
+  --s4: 1rem;
+  --s5: 1.5rem;
+  --s6: 2rem;
+  --s7: 3rem;
+
+  --radius-sm: 3px;
+  --radius: 6px;
+  --radius-lg: 10px;
+
+  /* ---- motion: two durations and one curve ---- */
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --t-fast: 140ms;
+  --t-slow: 380ms;
+
+  --shadow-panel: 0 1px 2px rgba(0, 0, 0, 0.5), 0 8px 28px rgba(0, 0, 0, 0.35);
+}
+
+/*
+ * The instrument is dark by design: it renders glowing neural activity, and a
+ * light theme would misrepresent that content. We still honour forced-colors and
+ * reduced-motion, which are accessibility needs rather than taste.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
