@@ -239,3 +239,34 @@ export function createThermalSafeRenderer(canvas?: HTMLCanvasElement): THREE.Web
   renderer.setPixelRatio(clampedPixelRatio());
   return renderer;
 }
+
+/* ---------- graceful degradation ---------- */
+
+/**
+ * Renders an explanatory panel when a WebGL context cannot be created.
+ *
+ * AGENTS.md §17 requires a graceful fallback, and the previous build only had
+ * `console.warn`, so a reader without WebGL saw an unexplained black rectangle.
+ * A blank area is indistinguishable from a broken app; this says which view
+ * failed and what still works without it.
+ */
+export function renderWebGLFallback(host: HTMLElement, viewName: string, stillWorks: string): void {
+  const el = document.createElement('div');
+  el.className = 'webgl-fallback';
+  el.setAttribute('role', 'status');
+  el.innerHTML =
+    `<div><strong>${viewName} unavailable</strong>` +
+    `This view needs WebGL, which this browser or device did not provide.<br />` +
+    `${stillWorks}</div>`;
+  host.appendChild(el);
+}
+
+/** True when the browser can actually give us a WebGL context. */
+export function isWebGLAvailable(): boolean {
+  try {
+    const c = document.createElement('canvas');
+    return !!(window.WebGLRenderingContext && (c.getContext('webgl') || c.getContext('experimental-webgl')));
+  } catch {
+    return false;
+  }
+}

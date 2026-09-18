@@ -12,7 +12,7 @@
  */
 
 import * as THREE from 'three';
-import { releaseRenderer, disposeSceneGraph } from './render/Lifecycle';
+import { releaseRenderer, disposeSceneGraph, renderWebGLFallback } from './render/Lifecycle';
 import { LiveEngineAdapter } from '../engine/live/LiveEngineAdapter';
 import { LoomingCalculator } from '../engine/live/LoomingCalculator';
 import { ReceptiveFieldGradient } from '../engine/shared/ConnectomeTypes';
@@ -256,7 +256,14 @@ export class Arena3DView {
       rimLight.position.set(-40, 30, -50);
       this.scene.add(rimLight);
     } catch (err) {
-      console.warn('Arena3DView WebGL init warning:', err);
+      console.warn('Arena3DView: WebGL unavailable, falling back.', err);
+      this.renderer = null;
+      renderWebGLFallback(
+        this.container,
+        '3D chamber',
+        'Switch to <strong>2D VECTOR</strong> in the toolbar — the encounter and the ' +
+          'connectome simulation run identically there.'
+      );
     }
   }
 

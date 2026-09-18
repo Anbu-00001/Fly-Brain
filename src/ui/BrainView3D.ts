@@ -13,7 +13,7 @@
  */
 
 import * as THREE from 'three';
-import { releaseRenderer, disposeSceneGraph } from './render/Lifecycle';
+import { releaseRenderer, disposeSceneGraph, renderWebGLFallback } from './render/Lifecycle';
 import { SimulationTickData } from '../engine/shared/ConnectomeTypes';
 
 interface NeuropilCluster {
@@ -93,7 +93,14 @@ export class BrainView3D {
 
       this.resize();
     } catch (err) {
-      console.warn('Three.js WebGL initialization failed:', err);
+      console.warn('BrainView3D: WebGL unavailable, falling back.', err);
+      this.renderer = null;
+      renderWebGLFallback(
+        this.container,
+        '3D brain view',
+        'Use the <strong>2D PARTICLE VIEW</strong> toggle — it shows the same live ' +
+          'spike data on a 2D canvas.'
+      );
     }
   }
 
