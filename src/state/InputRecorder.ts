@@ -6,6 +6,7 @@
  */
 
 import { InputLogSample, ReplayLog } from '../engine/shared/ConnectomeTypes';
+import { LIVE_ENGINE_METADATA } from '../engine/shared/ConnectomeTypes';
 
 export class InputRecorder {
   private samples: InputLogSample[] = [];
@@ -44,8 +45,8 @@ export class InputRecorder {
     return {
       version: 1,
       engine: 'LIVE',
-      dataset: 'FlyWire FAFB v783',
-      neuronCount: 139255,
+      dataset: LIVE_ENGINE_METADATA.datasetName,
+      neuronCount: LIVE_ENGINE_METADATA.totalNeurons,
       seed: this.seed,
       arenaWidth: this.arenaWidth,
       arenaHeight: this.arenaHeight,

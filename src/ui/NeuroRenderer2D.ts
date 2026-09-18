@@ -1,3 +1,4 @@
+import { LIVE_ENGINE_METADATA } from '../engine/shared/ConnectomeTypes';
 /**
  * NeuroRenderer2D.ts
  *
@@ -15,7 +16,9 @@ export class NeuroRenderer2D {
   private colorBuffer: WebGLBuffer | null = null;
   private brightnessBuffer: WebGLBuffer | null = null;
 
-  private neuronCount: number = 139255;
+  // Sourced from the engine metadata rather than transcribed, so this cannot
+  // drift away from the dataset the worker actually loaded.
+  private neuronCount: number = LIVE_ENGINE_METADATA.totalNeurons;
   private brightnessData: Float32Array;
   private animFrameId: number | null = null;
   private isRunning: boolean = false;

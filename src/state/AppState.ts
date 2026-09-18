@@ -29,7 +29,6 @@ export class AppState {
   public responseWallClockMs: number | null = null;
   public threatStartTimeMs: number | null = null;
   public escapeStartTimeMs: number | null = null;
-  public currentSpikeRateHz: number = 0;
   public survivalTimeS: number = 0;
 
   // View toggles
